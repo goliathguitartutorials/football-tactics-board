@@ -3,18 +3,13 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "homepage": "https://goliathguitartutorials.github.io/football-tactics-board",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node fix-build.js",
+    "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview",
-    "predeploy": "npm run build",
-    "deploy": "gh-pages -d dist",
-    "postbuild": "node fix-build.js"
+    "preview": "vite preview"
   },
   "dependencies": {
-    "gh-pages": "^6.3.0",
     "konva": "^9.3.20",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
