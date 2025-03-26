@@ -6,11 +6,12 @@
   "homepage": "https://goliathguitartutorials.github.io/football-tactics-board",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node fix-build.js",
     "lint": "eslint .",
     "preview": "vite preview",
     "predeploy": "npm run build",
-    "deploy": "gh-pages -d dist"
+    "deploy": "gh-pages -d dist",
+    "postbuild": "node fix-build.js"
   },
   "dependencies": {
     "gh-pages": "^6.3.0",
