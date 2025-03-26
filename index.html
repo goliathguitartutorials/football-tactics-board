@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="/football-tactics-board/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Football Tactics Board</title>
     <!-- Start Single Page Apps for GitHub Pages -->
@@ -58,7 +58,7 @@
         
         // Check if main script path should include base
         var scriptElement = document.querySelector('script[type="module"]');
-        document.getElementById("debug-script-load").innerHTML = "<p><strong>Script src:</strong> " + scriptElement.getAttribute('src') + "</p>";
+        document.getElementById("debug-script-load").innerHTML = "<p><strong>Script src:</strong> " + (scriptElement ? scriptElement.getAttribute('src') : 'No script found') + "</p>";
         
         // Create a list of all resources being loaded
         var resources = Array.from(document.querySelectorAll('script, link')).map(el => {
@@ -78,6 +78,6 @@
         }
       }, true);
     </script>
-    <script type="module" src="/src/main.jsx"></script>
+    <script type="module" src="/football-tactics-board/src/main.jsx"></script>
   </body>
 </html>
