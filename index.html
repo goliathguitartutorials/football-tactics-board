@@ -3,74 +3,165 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Football Tactics Board</title>
-  <link rel="icon" type="image/svg+xml" href="./vite.svg">
-  <!-- We'll load the CSS file directly since we know the filename after build -->
-  <!-- This will be updated by the fix-build.js script -->
-  <link rel="stylesheet" href="./assets/index-bbzxN44s.css">
+  <title>Football Tactics Board (Standalone)</title>
+  <link rel="icon" type="image/svg+xml" href="/football-tactics-board/vite.svg">
+  
+  <!-- Force absolute base path for all assets -->
+  <base href="/football-tactics-board/">
+  
+  <!-- Critical CSS for the loading screen -->
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+      background-color: #242424;
+      color: rgba(255, 255, 255, 0.87);
+    }
+    
+    #loading {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background-color: #242424;
+      z-index: 9999;
+    }
+    
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 5px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: #4CAF50;
+      animation: spin 1s ease-in-out infinite;
+      margin-bottom: 20px;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    .status-container {
+      background-color: #333;
+      padding: 20px;
+      border-radius: 8px;
+      text-align: center;
+      max-width: 600px;
+      margin: 20px;
+    }
+    
+    .button {
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-top: 15px;
+      font-size: 16px;
+    }
+    
+    .button:hover {
+      background-color: #45a049;
+    }
+    
+    #error {
+      display: none;
+    }
+    
+    a {
+      color: #4CAF50;
+      text-decoration: none;
+    }
+    
+    a:hover {
+      text-decoration: underline;
+    }
+  </style>
+  
+  <!-- Direct CSS import with GitHub Pages path -->
+  <link rel="stylesheet" href="/football-tactics-board/assets/index-bbzxN44s.css">
 </head>
 <body>
   <!-- Root element where React will mount -->
   <div id="root"></div>
   
-  <!-- Loading indicator that will disappear when app loads -->
-  <div id="loading" style="position:fixed; top:0; left:0; right:0; bottom:0; background:#242424; color:white; display:flex; flex-direction:column; align-items:center; justify-content:center; font-family:sans-serif; z-index:999;">
-    <div style="width:50px; height:50px; border:5px solid rgba(255,255,255,0.3); border-radius:50%; border-top-color:#4CAF50; animation:spin 1s linear infinite; margin-bottom:20px;"></div>
+  <!-- Loading screen -->
+  <div id="loading">
+    <div class="spinner"></div>
     <h2>Loading Football Tactics Board...</h2>
-    <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
   </div>
   
-  <!-- Error handler to display any loading issues -->
+  <!-- Error screen (hidden by default) -->
+  <div id="error" class="status-container">
+    <h2 style="color: #f44336;">Loading Error</h2>
+    <p id="error-message">There was a problem loading the application.</p>
+    <p>Try one of these options:</p>
+    <div style="margin: 15px 0;">
+      <a href="/football-tactics-board/test.html">Basic Test Page</a> |
+      <a href="/football-tactics-board/static.html">Static Version</a>
+    </div>
+    <button class="button" onclick="window.location.reload()">Reload Page</button>
+  </div>
+  
   <script>
+    // Show error if loading takes too long
+    const timeoutId = setTimeout(function() {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('error').style.display = 'block';
+      document.getElementById('error-message').textContent = 'The application is taking too long to load.';
+    }, 10000);
+    
+    // Handle script loading errors
     window.addEventListener('error', function(e) {
       if (e.target.tagName === 'SCRIPT') {
-        document.getElementById('loading').innerHTML = `
-          <div style="background:#333; padding:20px; border-radius:8px; max-width:600px; text-align:center;">
-            <h2 style="color:#f44336;">Script Loading Error</h2>
-            <p>Failed to load: ${e.target.src}</p>
-            <p>Please check your network connection or try refreshing.</p>
-            <button onclick="window.location.reload()" style="background:#4CAF50; color:white; border:none; padding:10px 15px; border-radius:4px; cursor:pointer; margin-top:15px;">Reload Page</button>
-          </div>
-        `;
+        clearTimeout(timeoutId);
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('error').style.display = 'block';
+        document.getElementById('error-message').textContent = 'Failed to load script: ' + e.target.src;
       }
     }, true);
-
-    // Hide loading when app is ready
+    
+    // Hide loading screen when app is loaded
     window.addEventListener('load', function() {
       setTimeout(function() {
-        var loadingScreen = document.getElementById('loading');
-        if (loadingScreen) {
-          loadingScreen.style.opacity = '0';
-          loadingScreen.style.transition = 'opacity 0.5s ease';
+        clearTimeout(timeoutId);
+        const loadingEl = document.getElementById('loading');
+        if (loadingEl) {
+          loadingEl.style.opacity = '0';
+          loadingEl.style.transition = 'opacity 0.5s ease';
           setTimeout(function() {
-            loadingScreen.style.display = 'none';
+            loadingEl.style.display = 'none';
           }, 500);
         }
       }, 1000);
     });
     
-    // Show timeout message if app doesn't load
-    setTimeout(function() {
-      var loadingScreen = document.getElementById('loading');
-      if (loadingScreen && loadingScreen.style.display !== 'none') {
-        loadingScreen.innerHTML = `
-          <div style="background:#333; padding:20px; border-radius:8px; max-width:600px; text-align:center;">
-            <h2 style="color:#f44336;">Loading Timeout</h2>
-            <p>The application is taking longer than expected to load.</p>
-            <p>You can try visiting our alternative pages:</p>
-            <div style="margin-top:15px">
-              <a href="./test.html" style="color:#4CAF50; margin-right:15px;">Test Page</a>
-              <a href="./static.html" style="color:#4CAF50;">Static Version</a>
-            </div>
-            <button onclick="window.location.reload()" style="background:#4CAF50; color:white; border:none; padding:10px 15px; border-radius:4px; cursor:pointer; margin-top:15px;">Reload Page</button>
-          </div>
-        `;
-      }
-    }, 10000);
+    // Manually inject the React app script with the correct path
+    function loadApp() {
+      // For debugging
+      console.log('Loading app from:', '/football-tactics-board/assets/index-CM5XiVpp.js');
+      
+      const script = document.createElement('script');
+      script.type = 'module';
+      script.src = '/football-tactics-board/assets/index-CM5XiVpp.js';
+      script.onerror = function() {
+        clearTimeout(timeoutId);
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('error').style.display = 'block';
+        document.getElementById('error-message').textContent = 'Failed to load main application script.';
+      };
+      document.body.appendChild(script);
+    }
+    
+    // Immediately load the app
+    loadApp();
   </script>
-  
-  <!-- We'll load the JS file directly since we know the filename after build -->
-  <!-- This will be updated by the fix-build.js script -->
-  <script type="module" src="./assets/index-B0EmrwuK.js"></script>
 </body>
 </html> 
