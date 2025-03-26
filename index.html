@@ -1,148 +1,76 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/football-tactics-board/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Football Tactics Board</title>
-    <!-- Start Single Page Apps for GitHub Pages -->
-    <script type="text/javascript">
-      // Single Page Apps for GitHub Pages
-      // MIT License
-      // https://github.com/rafgraph/spa-github-pages
-      (function(l) {
-        if (l.search[1] === '/' ) {
-          var decoded = l.search.slice(1).split('&').map(function(s) { 
-            return s.replace(/~and~/g, '&')
-          }).join('?');
-          window.history.replaceState(null, null,
-              l.pathname.slice(0, -1) + decoded + l.hash
-          );
-        }
-      }(window.location))
-    </script>
-    <!-- End Single Page Apps for GitHub Pages -->
-    <style>
-      #debug-info {
-        position: fixed;
-        top: 10px;
-        left: 10px;
-        background: rgba(0, 0, 0, 0.8);
-        color: white;
-        padding: 10px;
-        border-radius: 5px;
-        font-family: monospace;
-        z-index: 9999;
-        max-width: 80%;
-        overflow: auto;
-        max-height: 80%;
-      }
-    </style>
-    <script type="module" crossorigin src="/football-tactics-board/assets/index-B0EmrwuK.js"></script>
-    <link rel="stylesheet" crossorigin href="/football-tactics-board/assets/index-bbzxN44s.css">
-  </head>
-  <body>
-    <div id="debug-info">
-      <h2>Debug Info</h2>
-      <div id="debug-location"></div>
-      <div id="debug-paths"></div>
-      <div id="debug-root-found"></div>
-      <div id="debug-script-load"></div>
-      <div id="debug-resources"></div>
-    </div>
-    <div id="root"></div>
-    <script>
-      // Immediate debug info that runs before any other scripts
-      try {
-        document.getElementById("debug-location").innerHTML = "<p><strong>URL:</strong> " + window.location.href + "</p>";
-        document.getElementById("debug-paths").innerHTML = "<p><strong>Path:</strong> " + window.location.pathname + "</p>";
-        document.getElementById("debug-root-found").innerHTML = "<p><strong>Root element exists:</strong> " + (document.getElementById("root") !== null) + "</p>";
-        
-        // Check if main script path should include base
-        var scriptElement = document.querySelector('script[type="module"]');
-        document.getElementById("debug-script-load").innerHTML = "<p><strong>Script src:</strong> " + (scriptElement ? scriptElement.getAttribute('src') : 'No script found') + "</p>";
-        
-        // Create a list of all resources being loaded
-        var resources = Array.from(document.querySelectorAll('script, link')).map(el => {
-          var src = el.getAttribute('src') || el.getAttribute('href');
-          return el.tagName + ': ' + src;
-        }).join('<br>');
-        
-        document.getElementById("debug-resources").innerHTML = "<p><strong>Resources:</strong><br>" + resources + "</p>";
-      } catch(e) {
-        document.getElementById("debug-info").innerHTML += "<p><strong>Error:</strong> " + e.message + "</p>";
-      }
-      
-      // Add event listener to detect if main script fails to load
-      window.addEventListener('error', function(e) {
-        if (e.target.tagName === 'SCRIPT') {
-          document.getElementById("debug-info").innerHTML += "<p><strong>Script load error:</strong> " + e.target.src + "</p>";
-        }
-      }, true);
-    </script>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Football Tactics Board</title>
+  <link rel="icon" type="image/svg+xml" href="./vite.svg">
+  <!-- We'll load the CSS file directly since we know the filename after build -->
+  <!-- This will be updated by the fix-build.js script -->
+  <link rel="stylesheet" href="./assets/index-bbzxN44s.css">
+</head>
+<body>
+  <!-- Root element where React will mount -->
+  <div id="root"></div>
   
-<script>
-  // Inject base path for scripts and assets
-  (function() {
-    const basePath = '/football-tactics-board/';
-    const scripts = document.querySelectorAll('script[src]');
-    const links = document.querySelectorAll('link[href]');
-    
-    // Fix script sources
-    scripts.forEach(script => {
-      const src = script.getAttribute('src');
-      if (src && !src.startsWith('http') && !src.startsWith('/football-tactics-board/')) {
-        if (src.startsWith('/')) {
-          script.setAttribute('src', basePath + src.substring(1));
-        }
+  <!-- Loading indicator that will disappear when app loads -->
+  <div id="loading" style="position:fixed; top:0; left:0; right:0; bottom:0; background:#242424; color:white; display:flex; flex-direction:column; align-items:center; justify-content:center; font-family:sans-serif; z-index:999;">
+    <div style="width:50px; height:50px; border:5px solid rgba(255,255,255,0.3); border-radius:50%; border-top-color:#4CAF50; animation:spin 1s linear infinite; margin-bottom:20px;"></div>
+    <h2>Loading Football Tactics Board...</h2>
+    <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+  </div>
+  
+  <!-- Error handler to display any loading issues -->
+  <script>
+    window.addEventListener('error', function(e) {
+      if (e.target.tagName === 'SCRIPT') {
+        document.getElementById('loading').innerHTML = `
+          <div style="background:#333; padding:20px; border-radius:8px; max-width:600px; text-align:center;">
+            <h2 style="color:#f44336;">Script Loading Error</h2>
+            <p>Failed to load: ${e.target.src}</p>
+            <p>Please check your network connection or try refreshing.</p>
+            <button onclick="window.location.reload()" style="background:#4CAF50; color:white; border:none; padding:10px 15px; border-radius:4px; cursor:pointer; margin-top:15px;">Reload Page</button>
+          </div>
+        `;
       }
-    });
-    
-    // Fix link hrefs
-    links.forEach(link => {
-      const href = link.getAttribute('href');
-      if (href && !href.startsWith('http') && !href.startsWith('/football-tactics-board/')) {
-        if (href.startsWith('/')) {
-          link.setAttribute('href', basePath + href.substring(1));
-        }
-      }
-    });
-    
-    console.log('Path fix script executed');
-  })();
-</script>
+    }, true);
 
-
-<script>
-  // Inject base path for scripts and assets
-  (function() {
-    const basePath = '/football-tactics-board/';
-    const scripts = document.querySelectorAll('script[src]');
-    const links = document.querySelectorAll('link[href]');
-    
-    // Fix script sources
-    scripts.forEach(script => {
-      const src = script.getAttribute('src');
-      if (src && !src.startsWith('http') && !src.startsWith('/football-tactics-board/')) {
-        if (src.startsWith('/')) {
-          script.setAttribute('src', basePath + src.substring(1));
+    // Hide loading when app is ready
+    window.addEventListener('load', function() {
+      setTimeout(function() {
+        var loadingScreen = document.getElementById('loading');
+        if (loadingScreen) {
+          loadingScreen.style.opacity = '0';
+          loadingScreen.style.transition = 'opacity 0.5s ease';
+          setTimeout(function() {
+            loadingScreen.style.display = 'none';
+          }, 500);
         }
-      }
+      }, 1000);
     });
     
-    // Fix link hrefs
-    links.forEach(link => {
-      const href = link.getAttribute('href');
-      if (href && !href.startsWith('http') && !href.startsWith('/football-tactics-board/')) {
-        if (href.startsWith('/')) {
-          link.setAttribute('href', basePath + href.substring(1));
-        }
+    // Show timeout message if app doesn't load
+    setTimeout(function() {
+      var loadingScreen = document.getElementById('loading');
+      if (loadingScreen && loadingScreen.style.display !== 'none') {
+        loadingScreen.innerHTML = `
+          <div style="background:#333; padding:20px; border-radius:8px; max-width:600px; text-align:center;">
+            <h2 style="color:#f44336;">Loading Timeout</h2>
+            <p>The application is taking longer than expected to load.</p>
+            <p>You can try visiting our alternative pages:</p>
+            <div style="margin-top:15px">
+              <a href="./test.html" style="color:#4CAF50; margin-right:15px;">Test Page</a>
+              <a href="./static.html" style="color:#4CAF50;">Static Version</a>
+            </div>
+            <button onclick="window.location.reload()" style="background:#4CAF50; color:white; border:none; padding:10px 15px; border-radius:4px; cursor:pointer; margin-top:15px;">Reload Page</button>
+          </div>
+        `;
       }
-    });
-    
-    console.log('Path fix script executed');
-  })();
-</script>
-
+    }, 10000);
+  </script>
+  
+  <!-- We'll load the JS file directly since we know the filename after build -->
+  <!-- This will be updated by the fix-build.js script -->
+  <script type="module" src="./assets/index-B0EmrwuK.js"></script>
 </body>
-</html>
+</html> 
