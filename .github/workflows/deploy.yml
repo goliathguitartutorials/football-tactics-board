@@ -23,7 +23,12 @@ jobs:
         run: npm install
         
       - name: Build
-        run: npm run build
+        run: |
+          npm run build
+          cp -f dist/index.html dist/404.html
+          ls -la dist
+          echo "Build completed with files:"
+          find dist -type f | sort
         
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4

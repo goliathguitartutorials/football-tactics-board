@@ -1,102 +1,141 @@
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Get current directory
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 console.log('Running post-build fixes...');
 
-// 1. Add base path to the script and asset URLs in the built index.html
-try {
-  console.log('Fixing paths in dist/index.html...');
-  let indexHtml = fs.readFileSync('dist/index.html', 'utf8');
-  
-  // Replace asset paths - this works for both scripts and links
-  indexHtml = indexHtml.replace(/src="\/assets\//g, 'src="/football-tactics-board/assets/');
-  indexHtml = indexHtml.replace(/href="\/assets\//g, 'href="/football-tactics-board/assets/');
-  
-  // Replace vite.svg path
-  indexHtml = indexHtml.replace(/href="\/vite.svg"/g, 'href="/football-tactics-board/vite.svg"');
-  
-  fs.writeFileSync('dist/index.html', indexHtml);
-  console.log('✓ Successfully fixed paths in dist/index.html');
-} catch (err) {
-  console.error('Error fixing paths:', err);
+// Define paths
+const distDir = path.join(__dirname, 'dist');
+const publicDir = path.join(__dirname, 'public');
+
+// Function to get built asset filenames
+function getAssetFilenames() {
+  try {
+    // Find JS and CSS files in the assets directory
+    const assetFiles = fs.readdirSync(path.join(distDir, 'assets'));
+    const jsFile = assetFiles.find(file => file.endsWith('.js'));
+    const cssFile = assetFiles.find(file => file.endsWith('.css'));
+    
+    return { jsFile, cssFile };
+  } catch (err) {
+    console.error('Error reading asset files:', err);
+    return { jsFile: null, cssFile: null };
+  }
 }
 
-// 2. Create a script to inject into the HTML that will fix runtime path issues
-const fixScript = `
-<script>
-  // Inject base path for scripts and assets
-  (function() {
-    const basePath = '/football-tactics-board/';
-    const scripts = document.querySelectorAll('script[src]');
-    const links = document.querySelectorAll('link[href]');
-    
-    // Fix script sources
-    scripts.forEach(script => {
-      const src = script.getAttribute('src');
-      if (src && !src.startsWith('http') && !src.startsWith('/football-tactics-board/')) {
-        if (src.startsWith('/')) {
-          script.setAttribute('src', basePath + src.substring(1));
-        }
-      }
-    });
-    
-    // Fix link hrefs
-    links.forEach(link => {
-      const href = link.getAttribute('href');
-      if (href && !href.startsWith('http') && !href.startsWith('/football-tactics-board/')) {
-        if (href.startsWith('/')) {
-          link.setAttribute('href', basePath + href.substring(1));
-        }
-      }
-    });
-    
-    console.log('Path fix script executed');
-  })();
-</script>
-`;
-
-// 3. Add the fix script to the built index.html file
-try {
-  console.log('Adding path fix script to dist/index.html...');
-  let indexHtml = fs.readFileSync('dist/index.html', 'utf8');
-  
-  // Insert the fix script before the closing </body> tag
-  indexHtml = indexHtml.replace('</body>', `${fixScript}\n</body>`);
-  
-  fs.writeFileSync('dist/index.html', indexHtml);
-  console.log('✓ Successfully added path fix script to dist/index.html');
-} catch (err) {
-  console.error('Error adding path fix script:', err);
+// Check if dist directory exists
+if (!fs.existsSync(distDir)) {
+  console.error('Error: dist directory does not exist. Run build first.');
+  process.exit(1);
 }
 
-// 4. Copy necessary files to dist
+// 1. Use our custom production HTML file with the correct asset paths
 try {
-  console.log('Copying static files to dist...');
-  if (fs.existsSync('public/404.html')) {
-    fs.copyFileSync('public/404.html', 'dist/404.html');
-    console.log('✓ Successfully copied 404.html to dist');
+  console.log('Creating production index.html with correct asset paths...');
+  
+  // Get the asset filenames
+  const { jsFile, cssFile } = getAssetFilenames();
+  
+  if (!jsFile || !cssFile) {
+    throw new Error('Could not find JS or CSS files in dist/assets/');
   }
   
-  if (fs.existsSync('public/test.html')) {
-    fs.copyFileSync('public/test.html', 'dist/test.html');
-    console.log('✓ Successfully copied test.html to dist');
-  }
+  // Read our production HTML template
+  let prodHtml = fs.readFileSync(path.join(publicDir, 'index-prod.html'), 'utf8');
   
-  if (fs.existsSync('public/static.html')) {
-    fs.copyFileSync('public/static.html', 'dist/static.html');
-    console.log('✓ Successfully copied static.html to dist');
-  }
+  // Replace placeholders with actual filenames
+  prodHtml = prodHtml.replace('JS_PLACEHOLDER', `assets/${jsFile}`);
+  prodHtml = prodHtml.replace('CSS_PLACEHOLDER', `assets/${cssFile}`);
   
-  if (fs.existsSync('public/direct.html')) {
-    fs.copyFileSync('public/direct.html', 'dist/direct.html');
-    console.log('✓ Successfully copied direct.html to dist');
-  }
-  
-  // Create .nojekyll file to prevent GitHub Pages from using Jekyll processing
-  fs.writeFileSync('dist/.nojekyll', '');
+  // Write to dist/index.html
+  fs.writeFileSync(path.join(distDir, 'index.html'), prodHtml);
+  console.log(`✓ Successfully created production index.html with assets: JS=${jsFile}, CSS=${cssFile}`);
+} catch (err) {
+  console.error('Error creating production index.html:', err);
+}
+
+// 2. Create or ensure .nojekyll file exists
+try {
+  fs.writeFileSync(path.join(distDir, '.nojekyll'), '');
   console.log('✓ Created .nojekyll file in dist');
 } catch (err) {
-  console.error('Error copying files:', err);
+  console.error('Error creating .nojekyll file:', err);
+}
+
+// 3. Copy all HTML files from public directory to dist
+try {
+  console.log('Copying HTML files from public to dist...');
+  
+  // Get all HTML files from public
+  const htmlFiles = fs.readdirSync(publicDir)
+    .filter(file => file.endsWith('.html') && file !== 'index-prod.html');
+  
+  // Copy each file
+  htmlFiles.forEach(file => {
+    fs.copyFileSync(
+      path.join(publicDir, file),
+      path.join(distDir, file)
+    );
+    console.log(`✓ Copied ${file} to dist`);
+  });
+} catch (err) {
+  console.error('Error copying HTML files:', err);
+}
+
+// 4. Create a fallback 404.html if it doesn't exist
+try {
+  if (!fs.existsSync(path.join(distDir, '404.html'))) {
+    console.log('Creating fallback 404.html...');
+    
+    const fallback404 = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Page Not Found</title>
+  <script>
+    // Redirect to index
+    window.location.href = '/football-tactics-board/';
+  </script>
+  <style>
+    body {
+      font-family: sans-serif;
+      background-color: #242424;
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    div {
+      text-align: center;
+      background-color: #333;
+      padding: 20px;
+      border-radius: 8px;
+      max-width: 500px;
+    }
+    h1 { color: #4CAF50; }
+    a { color: #4CAF50; }
+  </style>
+</head>
+<body>
+  <div>
+    <h1>Page Not Found</h1>
+    <p>Redirecting to home page...</p>
+    <p>If you are not redirected, <a href="/football-tactics-board/">click here</a>.</p>
+  </div>
+</body>
+</html>`;
+    
+    fs.writeFileSync(path.join(distDir, '404.html'), fallback404);
+    console.log('✓ Created fallback 404.html');
+  }
+} catch (err) {
+  console.error('Error creating fallback 404.html:', err);
 }
 
 console.log('Post-build fixes complete!'); 
