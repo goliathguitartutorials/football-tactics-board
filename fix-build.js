@@ -12,48 +12,57 @@ console.log('Running post-build fixes...');
 const distDir = path.join(__dirname, 'dist');
 const publicDir = path.join(__dirname, 'public');
 
-// Function to get built asset filenames
-function getAssetFilenames() {
-  try {
-    // Find JS and CSS files in the assets directory
-    const assetFiles = fs.readdirSync(path.join(distDir, 'assets'));
-    const jsFile = assetFiles.find(file => file.endsWith('.js'));
-    const cssFile = assetFiles.find(file => file.endsWith('.css'));
-    
-    return { jsFile, cssFile };
-  } catch (err) {
-    console.error('Error reading asset files:', err);
-    return { jsFile: null, cssFile: null };
-  }
-}
-
 // Check if dist directory exists
 if (!fs.existsSync(distDir)) {
   console.error('Error: dist directory does not exist. Run build first.');
   process.exit(1);
 }
 
-// 1. Use our custom production HTML file with the correct asset paths
+// 1. Try to use the working.html file as index.html directly
 try {
-  console.log('Creating production index.html with correct asset paths...');
+  console.log('Using working.html as primary index.html...');
   
-  // Get the asset filenames
-  const { jsFile, cssFile } = getAssetFilenames();
-  
-  if (!jsFile || !cssFile) {
-    throw new Error('Could not find JS or CSS files in dist/assets/');
+  if (fs.existsSync(path.join(publicDir, 'working.html'))) {
+    fs.copyFileSync(
+      path.join(publicDir, 'working.html'),
+      path.join(distDir, 'index.html')
+    );
+    console.log('✓ Successfully copied working.html to dist/index.html');
+  } else {
+    console.log('working.html not found, falling back to regular approach');
+    // Function to get built asset filenames
+    function getAssetFilenames() {
+      try {
+        // Find JS and CSS files in the assets directory
+        const assetFiles = fs.readdirSync(path.join(distDir, 'assets'));
+        const jsFile = assetFiles.find(file => file.endsWith('.js'));
+        const cssFile = assetFiles.find(file => file.endsWith('.css'));
+        
+        return { jsFile, cssFile };
+      } catch (err) {
+        console.error('Error reading asset files:', err);
+        return { jsFile: null, cssFile: null };
+      }
+    }
+    
+    // Get the asset filenames
+    const { jsFile, cssFile } = getAssetFilenames();
+    
+    if (!jsFile || !cssFile) {
+      throw new Error('Could not find JS or CSS files in dist/assets/');
+    }
+    
+    // Read our production HTML template
+    let prodHtml = fs.readFileSync(path.join(publicDir, 'index-prod.html'), 'utf8');
+    
+    // Replace placeholders with actual filenames
+    prodHtml = prodHtml.replace('JS_PLACEHOLDER', `assets/${jsFile}`);
+    prodHtml = prodHtml.replace('CSS_PLACEHOLDER', `assets/${cssFile}`);
+    
+    // Write to dist/index.html
+    fs.writeFileSync(path.join(distDir, 'index.html'), prodHtml);
+    console.log(`✓ Successfully created production index.html with assets: JS=${jsFile}, CSS=${cssFile}`);
   }
-  
-  // Read our production HTML template
-  let prodHtml = fs.readFileSync(path.join(publicDir, 'index-prod.html'), 'utf8');
-  
-  // Replace placeholders with actual filenames
-  prodHtml = prodHtml.replace('JS_PLACEHOLDER', `assets/${jsFile}`);
-  prodHtml = prodHtml.replace('CSS_PLACEHOLDER', `assets/${cssFile}`);
-  
-  // Write to dist/index.html
-  fs.writeFileSync(path.join(distDir, 'index.html'), prodHtml);
-  console.log(`✓ Successfully created production index.html with assets: JS=${jsFile}, CSS=${cssFile}`);
 } catch (err) {
   console.error('Error creating production index.html:', err);
 }
