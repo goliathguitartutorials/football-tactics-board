@@ -3,17 +3,25 @@ import path from 'path';
 
 console.log('Running post-build fixes...');
 
-// 1. Copy the optimized index.html to dist
+// 1. Add base path to the script and asset URLs in the built index.html
 try {
-  console.log('Copying index-prod.html to dist/index.html...');
-  const optimizedHtml = fs.readFileSync('index-prod.html', 'utf8');
-  fs.writeFileSync('dist/index.html', optimizedHtml);
-  console.log('✓ Successfully copied index-prod.html to dist/index.html');
+  console.log('Fixing paths in dist/index.html...');
+  let indexHtml = fs.readFileSync('dist/index.html', 'utf8');
+  
+  // Replace asset paths - this works for both scripts and links
+  indexHtml = indexHtml.replace(/src="\/assets\//g, 'src="/football-tactics-board/assets/');
+  indexHtml = indexHtml.replace(/href="\/assets\//g, 'href="/football-tactics-board/assets/');
+  
+  // Replace vite.svg path
+  indexHtml = indexHtml.replace(/href="\/vite.svg"/g, 'href="/football-tactics-board/vite.svg"');
+  
+  fs.writeFileSync('dist/index.html', indexHtml);
+  console.log('✓ Successfully fixed paths in dist/index.html');
 } catch (err) {
-  console.error('Error copying index-prod.html:', err);
+  console.error('Error fixing paths:', err);
 }
 
-// 2. Create a script to inject into the HTML that will fix path issues
+// 2. Create a script to inject into the HTML that will fix runtime path issues
 const fixScript = `
 <script>
   // Inject base path for scripts and assets
@@ -28,8 +36,6 @@ const fixScript = `
       if (src && !src.startsWith('http') && !src.startsWith('/football-tactics-board/')) {
         if (src.startsWith('/')) {
           script.setAttribute('src', basePath + src.substring(1));
-        } else if (!src.startsWith('./') && !src.startsWith('../')) {
-          script.setAttribute('src', basePath + src);
         }
       }
     });
@@ -40,8 +46,6 @@ const fixScript = `
       if (href && !href.startsWith('http') && !href.startsWith('/football-tactics-board/')) {
         if (href.startsWith('/')) {
           link.setAttribute('href', basePath + href.substring(1));
-        } else if (!href.startsWith('./') && !href.startsWith('../')) {
-          link.setAttribute('href', basePath + href);
         }
       }
     });
@@ -65,17 +69,34 @@ try {
   console.error('Error adding path fix script:', err);
 }
 
-// 4. Update the deployed 404.html to handle redirects
+// 4. Copy necessary files to dist
 try {
-  console.log('Ensuring 404.html exists in dist...');
+  console.log('Copying static files to dist...');
   if (fs.existsSync('public/404.html')) {
     fs.copyFileSync('public/404.html', 'dist/404.html');
     console.log('✓ Successfully copied 404.html to dist');
-  } else {
-    console.warn('404.html not found in public folder, skipping');
   }
+  
+  if (fs.existsSync('public/test.html')) {
+    fs.copyFileSync('public/test.html', 'dist/test.html');
+    console.log('✓ Successfully copied test.html to dist');
+  }
+  
+  if (fs.existsSync('public/static.html')) {
+    fs.copyFileSync('public/static.html', 'dist/static.html');
+    console.log('✓ Successfully copied static.html to dist');
+  }
+  
+  if (fs.existsSync('public/direct.html')) {
+    fs.copyFileSync('public/direct.html', 'dist/direct.html');
+    console.log('✓ Successfully copied direct.html to dist');
+  }
+  
+  // Create .nojekyll file to prevent GitHub Pages from using Jekyll processing
+  fs.writeFileSync('dist/.nojekyll', '');
+  console.log('✓ Created .nojekyll file in dist');
 } catch (err) {
-  console.error('Error copying 404.html:', err);
+  console.error('Error copying files:', err);
 }
 
 console.log('Post-build fixes complete!'); 
