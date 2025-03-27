@@ -62,6 +62,11 @@ function App() {
     name: ''
   })
   
+  // Text dialog state
+  const [showTextDialog, setShowTextDialog] = useState(false)
+  const [newTextContent, setNewTextContent] = useState('')
+  const [textPosition, setTextPosition] = useState({ x: 0, y: 0 })
+  
   // Save/Load functionality
   const [viewMode, setViewMode] = useState('board') // 'board', 'save', 'load'
   const [savedBoards, setSavedBoards] = useState([])
@@ -555,6 +560,14 @@ function App() {
         }
         setShapes([...shapes, newCone])
         setActionTaken(true) // Mark that an action was taken
+        return
+      }
+      
+      if (activeTool === 'text') {
+        // Store the position for the text and open dialog
+        setTextPosition({ x: pos.x, y: pos.y })
+        setNewTextContent('')
+        setShowTextDialog(true)
         return
       }
 
@@ -1285,6 +1298,7 @@ function App() {
     const filteredPlayers = players.filter(player => player.color !== color);
     
     // Calculate positions based on orientation and home/away
+    // isHomeTeam true = left side, false = right side
     const positions = getFormationPositions(formation, isHomeTeam, verticalOrientation);
     
     // Create new players
@@ -1353,73 +1367,87 @@ function App() {
       case '442':
         positions = [
           {x: 0.08, y: 0.5},  // GK
-          {x: 0.2, y: 0.2},   // RB
-          {x: 0.2, y: 0.4},   // RCB
-          {x: 0.2, y: 0.6},   // LCB
-          {x: 0.2, y: 0.8},   // LB
-          {x: 0.4, y: 0.2},   // RM
-          {x: 0.4, y: 0.4},   // RCM
-          {x: 0.4, y: 0.6},   // LCM
-          {x: 0.4, y: 0.8},   // LM
-          {x: 0.6, y: 0.4},   // RS
-          {x: 0.6, y: 0.6}    // LS
+          {x: 0.2, y: 0.2},   // RB - Right back (low y = right side of pitch)
+          {x: 0.2, y: 0.4},   // RCB - Right center back
+          {x: 0.2, y: 0.6},   // LCB - Left center back
+          {x: 0.2, y: 0.8},   // LB - Left back (high y = left side of pitch)
+          {x: 0.4, y: 0.2},   // RM - Right midfielder
+          {x: 0.4, y: 0.4},   // RCM - Right center midfielder
+          {x: 0.4, y: 0.6},   // LCM - Left center midfielder
+          {x: 0.4, y: 0.8},   // LM - Left midfielder
+          {x: 0.6, y: 0.4},   // RS - Right striker
+          {x: 0.6, y: 0.6}    // LS - Left striker
         ];
         break;
       case '433':
         positions = [
           {x: 0.08, y: 0.5},  // GK
-          {x: 0.2, y: 0.2},   // RB
-          {x: 0.2, y: 0.4},   // RCB
-          {x: 0.2, y: 0.6},   // LCB
-          {x: 0.2, y: 0.8},   // LB
-          {x: 0.4, y: 0.35},  // RDM
-          {x: 0.4, y: 0.5},   // CDM
-          {x: 0.4, y: 0.65},  // LDM
-          {x: 0.65, y: 0.25}, // RW
-          {x: 0.65, y: 0.5},  // CF
-          {x: 0.65, y: 0.75}  // LW
+          {x: 0.2, y: 0.2},   // RB - Right back
+          {x: 0.2, y: 0.4},   // RCB - Right center back
+          {x: 0.2, y: 0.6},   // LCB - Left center back
+          {x: 0.2, y: 0.8},   // LB - Left back
+          {x: 0.4, y: 0.35},  // RDM - Right defensive midfielder
+          {x: 0.4, y: 0.5},   // CDM - Center defensive midfielder
+          {x: 0.4, y: 0.65},  // LDM - Left defensive midfielder
+          {x: 0.65, y: 0.25}, // RW - Right winger
+          {x: 0.65, y: 0.5},  // CF - Center forward
+          {x: 0.65, y: 0.75}  // LW - Left winger
         ];
         break;
       case '4231':
         positions = [
           {x: 0.08, y: 0.5},  // GK
-          {x: 0.2, y: 0.2},   // RB
-          {x: 0.2, y: 0.4},   // RCB
-          {x: 0.2, y: 0.6},   // LCB
-          {x: 0.2, y: 0.8},   // LB
-          {x: 0.35, y: 0.4},  // RDM
-          {x: 0.35, y: 0.6},  // LDM
-          {x: 0.5, y: 0.25},  // RAM
-          {x: 0.5, y: 0.5},   // CAM
-          {x: 0.5, y: 0.75},  // LAM
-          {x: 0.65, y: 0.5}   // ST
+          {x: 0.2, y: 0.2},   // RB - Right back
+          {x: 0.2, y: 0.4},   // RCB - Right center back
+          {x: 0.2, y: 0.6},   // LCB - Left center back
+          {x: 0.2, y: 0.8},   // LB - Left back
+          {x: 0.35, y: 0.4},  // RDM - Right defensive midfielder
+          {x: 0.35, y: 0.6},  // LDM - Left defensive midfielder
+          {x: 0.5, y: 0.25},  // RAM - Right attacking midfielder
+          {x: 0.5, y: 0.5},   // CAM - Center attacking midfielder
+          {x: 0.5, y: 0.75},  // LAM - Left attacking midfielder
+          {x: 0.65, y: 0.5}   // ST - Striker
         ];
         break;
       case '532':
         positions = [
           {x: 0.08, y: 0.5},  // GK
-          {x: 0.2, y: 0.2},   // RWB
-          {x: 0.2, y: 0.35},  // RCB
-          {x: 0.2, y: 0.5},   // CB
-          {x: 0.2, y: 0.65},  // LCB
-          {x: 0.2, y: 0.8},   // LWB
-          {x: 0.4, y: 0.3},   // RCM
-          {x: 0.4, y: 0.5},   // CM
-          {x: 0.4, y: 0.7},   // LCM
-          {x: 0.65, y: 0.4},  // RS
-          {x: 0.65, y: 0.6}   // LS
+          {x: 0.2, y: 0.2},   // RWB - Right wing back
+          {x: 0.2, y: 0.35},  // RCB - Right center back
+          {x: 0.2, y: 0.5},   // CB - Center back
+          {x: 0.2, y: 0.65},  // LCB - Left center back
+          {x: 0.2, y: 0.8},   // LWB - Left wing back
+          {x: 0.4, y: 0.3},   // RCM - Right center midfielder
+          {x: 0.4, y: 0.5},   // CM - Center midfielder
+          {x: 0.4, y: 0.7},   // LCM - Left center midfielder
+          {x: 0.65, y: 0.4},  // RS - Right striker
+          {x: 0.65, y: 0.6}   // LS - Left striker
         ];
         break;
       default:
         positions = [];
     }
     
-    // If away team, flip horizontally
-    if (!isHome) {
-      positions = positions.map(pos => ({x: 1 - pos.x, y: pos.y}));
+    // For home team (left side), keep x positions but flip y positions
+    // This makes the team face from left to right, with right back at the bottom
+    // and left back at the top
+    if (isHome) {
+      positions = positions.map(pos => ({
+        x: pos.x, 
+        y: 1 - pos.y  // Flip y so right backs (low y) are at bottom, left backs (high y) at top
+      }));
     }
     
-    // If vertical orientation, swap x and y and adjust
+    // For away team (right side), flip only x positions as before
+    // This makes them face from right to left
+    if (!isHome) {
+      positions = positions.map(pos => ({
+        x: 1 - pos.x,
+        y: pos.y
+      }));
+    }
+    
+    // If vertical orientation, handle rotation
     if (isVertical) {
       positions = positions.map(pos => {
         if (isHome) {
@@ -1642,15 +1670,19 @@ function App() {
     // Index 0 is always GK, handled separately in the UI
     switch(formation) {
       case '442':
+        // Updated to match the positions in getFormationPositions
         const positions442 = ['GK', 'RB', 'RCB', 'LCB', 'LB', 'RM', 'RCM', 'LCM', 'LM', 'RS', 'LS'];
         return positions442[index];
       case '433':
+        // Updated to match the positions in getFormationPositions
         const positions433 = ['GK', 'RB', 'RCB', 'LCB', 'LB', 'RDM', 'CDM', 'LDM', 'RW', 'CF', 'LW'];
         return positions433[index];
       case '4231':
+        // Updated to match the positions in getFormationPositions
         const positions4231 = ['GK', 'RB', 'RCB', 'LCB', 'LB', 'RDM', 'LDM', 'RAM', 'CAM', 'LAM', 'ST'];
         return positions4231[index];
       case '532':
+        // Updated to match the positions in getFormationPositions
         const positions532 = ['GK', 'RWB', 'RCB', 'CB', 'LCB', 'LWB', 'RCM', 'CM', 'LCM', 'RS', 'LS'];
         return positions532[index];
       default:
@@ -1705,6 +1737,7 @@ function App() {
     
     // Calculate positions based on orientation and side
     const isLeftSide = teamDialogData.side === 'left';
+    // Left side is home team, right side is away team
     const positions = getFormationPositions(teamDialogData.formation, isLeftSide, verticalOrientation);
     
     // Create new players
@@ -1887,6 +1920,36 @@ function App() {
     setIsMobileMenuOpen(!isMobileMenuOpen);
   }
 
+  // Handle text dialog submission
+  const handleTextSubmit = (e) => {
+    e?.preventDefault()
+    
+    if (newTextContent.trim()) {
+      const newText = {
+        id: `text-${shapes.length}-${Date.now()}`,
+        x: textPosition.x,
+        y: textPosition.y,
+        text: newTextContent.trim(),
+        color: color,
+        type: 'text'
+      }
+      setShapes([...shapes, newText])
+      setActionTaken(true)
+    }
+    
+    setShowTextDialog(false)
+  }
+  
+  // Close text dialog
+  const closeTextDialog = () => {
+    setShowTextDialog(false)
+  }
+  
+  // Handle text input change
+  const handleTextInputChange = (e) => {
+    setNewTextContent(e.target.value)
+  }
+
   return (
     <div className="tactics-board" tabIndex={0} onKeyDown={handleKeyDown}>
       <h1>Football Tactics Board</h1>
@@ -2012,9 +2075,14 @@ function App() {
               <button 
                 className={activeTool === 'cone' ? 'active' : ''} 
                 onClick={() => handleToolToggle('cone')}
-                style={{ width: '100%' }}
               >
                 Cone
+              </button>
+              <button 
+                className={activeTool === 'text' ? 'active' : ''} 
+                onClick={() => handleToolToggle('text')}
+              >
+                Text
               </button>
             </div>
           </div>
@@ -2470,6 +2538,27 @@ function App() {
                             fill={shape.color}
                             stroke={shape.strokeColor}
                             strokeWidth={2}
+                          />
+                        </Group>
+                      )
+                    } else if (shape.type === 'text') {
+                      return (
+                        <Group
+                          key={shape.id}
+                          id={shape.id}
+                          x={shape.x}
+                          y={shape.y}
+                          onClick={() => !activeTool && setSelectedId(shape.id)}
+                          opacity={selectedId === shape.id || selectedItems.includes(shape.id) ? 0.7 : 1}
+                          draggable={true}
+                          onDragStart={handleDragStart}
+                          onDragEnd={handleDragEnd}
+                        >
+                          <Text
+                            text={shape.text}
+                            fill={shape.color}
+                            fontSize={16}
+                            fontStyle="bold"
                           />
                         </Group>
                       )
@@ -2934,6 +3023,28 @@ function App() {
                 placeholder="Type your feedback here..."
               />
               <button type="submit" className="console-send-button">Send</button>
+            </form>
+          </div>
+        </div>
+      )}
+      
+      {/* Text Dialog */}
+      {showTextDialog && (
+        <div className="number-editor-overlay">
+          <div className="number-editor">
+            <h3>Add Text</h3>
+            <form onSubmit={handleTextSubmit}>
+              <input 
+                type="text" 
+                value={newTextContent} 
+                onChange={handleTextInputChange}
+                placeholder="Enter text"
+                autoFocus
+              />
+              <div className="buttons">
+                <button type="submit">Confirm</button>
+                <button type="button" onClick={closeTextDialog}>Cancel</button>
+              </div>
             </form>
           </div>
         </div>

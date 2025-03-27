@@ -64,8 +64,8 @@ h1 {
 .toolbar-section {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding-bottom: 15px;
+  gap: 7px;
+  padding-bottom: 10px;
   border-bottom: 1px solid #555;
 }
 
@@ -77,6 +77,7 @@ h1 {
   font-size: 16px;
   color: #fff;
   margin-bottom: 0;
+  margin-top: 0;
 }
 
 .toolbar-section .category-label {
@@ -88,7 +89,7 @@ h1 {
 .button-row {
   display: flex;
   gap: 5px;
-  margin-bottom: 2px;
+  margin-bottom: 0;
 }
 
 .button-row button {
@@ -946,6 +947,16 @@ input[type="color"] {
 
 /* Special spacing for the row after player edit buttons */
 .toolbar-section .button-row:last-child {
+  margin-top: 8px;
+}
+
+/* Remove any extra spacing above specific button rows */
+.toolbar-section .button-row {
+  margin-top: 0;
+}
+
+.toolbar-section h3 + .button-row,
+.toolbar-section .category-label + .button-row {
   margin-top: 8px;
 }
 
