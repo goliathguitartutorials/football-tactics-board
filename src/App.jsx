@@ -1,6 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react'
-import { Stage, Layer, Rect, Circle, Line, Arrow, Text, Group, Ellipse, Arc } from 'react-konva'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
+import { Stage, Layer, Rect, Circle, Line, Arrow, Text as KonvaText, Group, Ellipse, Arc } from 'react-konva'
+import Konva from 'konva'
 import './App.css'
+import { useAuth } from './context/AuthContext'
+import Auth from './components/Auth'
+import UserProfile from './components/UserProfile'
+import { saveTacticsBoard, getUserTacticsBoards, deleteTacticsBoard } from './services/firebase'
 
 function App() {
   const [activeTool, setActiveTool] = useState(null) // null, player, line, arrow, box, circle, delete, football, cone
@@ -74,6 +79,14 @@ function App() {
   const [selectedSaveIndex, setSelectedSaveIndex] = useState(-1)
   const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  
+  // Auth related states
+  const [showAuthModal, setShowAuthModal] = useState(false)
+  const [showUserProfile, setShowUserProfile] = useState(false)
+  const [authAction, setAuthAction] = useState('') // 'save' or 'load'
+  
+  // Access auth context
+  const { currentUser, loading } = useAuth()
   
   // FIFA standard pitch ratio is approximately 105:68 (length:width)
   const pitchRatio = 105 / 68
@@ -1582,21 +1595,46 @@ function App() {
     }
   };
 
-  // Load saved boards from localStorage on initial render
+  // Load saved boards from Firebase if user is logged in, otherwise use localStorage
   useEffect(() => {
-    const savedData = localStorage.getItem('footballTacticsBoards')
-    if (savedData) {
-      try {
-        const parsedData = JSON.parse(savedData)
-        setSavedBoards(parsedData)
-      } catch (e) {
-        console.error('Error loading saved boards:', e)
+    const loadSavedBoards = async () => {
+      if (currentUser) {
+        try {
+          // Get user's saved boards from Firebase
+          const userBoards = await getUserTacticsBoards(currentUser.uid)
+          setSavedBoards(userBoards)
+        } catch (error) {
+          console.error('Error loading boards from Firebase:', error)
+        }
+      } else {
+        // Fall back to localStorage if not logged in
+        const savedData = localStorage.getItem('footballTacticsBoards')
+        if (savedData) {
+          try {
+            const parsedData = JSON.parse(savedData)
+            setSavedBoards(parsedData)
+          } catch (e) {
+            console.error('Error loading saved boards from localStorage:', e)
+          }
+        }
       }
     }
-  }, [])
+    
+    if (!loading) {
+      loadSavedBoards()
+    }
+  }, [currentUser, loading])
 
   // Save functionality
   const handleSaveClick = () => {
+    // If not logged in, prompt for authentication before saving
+    if (!currentUser) {
+      setAuthAction('save')
+      setShowAuthModal(true)
+      return
+    }
+    
+    // If logged in, proceed to save flow
     setViewMode(viewMode === 'save' ? 'board' : 'save')
     setCurrentSaveName('')
     setSelectedSaveIndex(-1)
@@ -1605,13 +1643,21 @@ function App() {
 
   // Load functionality
   const handleLoadClick = () => {
+    // If not logged in, prompt for authentication before loading
+    if (!currentUser) {
+      setAuthAction('load')
+      setShowAuthModal(true)
+      return
+    }
+    
+    // If logged in, proceed to load flow
     setViewMode(viewMode === 'load' ? 'board' : 'load')
     setCurrentSaveName('')
     setSelectedSaveIndex(-1)
   }
 
   // Handle creating a new save or overwriting an existing save
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!currentSaveName.trim()) {
       return // Don't save if name is empty
     }
@@ -1633,23 +1679,38 @@ function App() {
       verticalOrientation
     }
 
-    let newSavedBoards
-    if (selectedSaveIndex !== -1) {
-      // Overwrite existing save
-      newSavedBoards = [...savedBoards]
-      newSavedBoards[selectedSaveIndex] = boardData
-    } else {
-      // Create new save
-      newSavedBoards = [...savedBoards, boardData]
+    try {
+      if (currentUser) {
+        // Save to Firebase
+        await saveTacticsBoard(currentUser.uid, boardData)
+        
+        // Refresh the saved boards list from server
+        const userBoards = await getUserTacticsBoards(currentUser.uid)
+        setSavedBoards(userBoards)
+      } else {
+        // Fall back to localStorage if somehow we got here without being logged in
+        let newSavedBoards
+        if (selectedSaveIndex !== -1) {
+          // Overwrite existing save
+          newSavedBoards = [...savedBoards]
+          newSavedBoards[selectedSaveIndex] = boardData
+        } else {
+          // Create new save
+          newSavedBoards = [...savedBoards, boardData]
+        }
+        
+        // Update state and localStorage
+        setSavedBoards(newSavedBoards)
+        localStorage.setItem('footballTacticsBoards', JSON.stringify(newSavedBoards))
+      }
+      
+      // Return to board view
+      setViewMode('board')
+      setShowOverwriteConfirm(false)
+    } catch (error) {
+      console.error('Error saving board:', error)
+      alert('Failed to save your board. Please try again.')
     }
-
-    // Update state and localStorage
-    setSavedBoards(newSavedBoards)
-    localStorage.setItem('footballTacticsBoards', JSON.stringify(newSavedBoards))
-
-    // Return to board view
-    setViewMode('board')
-    setShowOverwriteConfirm(false)
   }
 
   // Handle loading a board
@@ -1685,7 +1746,7 @@ function App() {
   }
 
   // Handle deleting a saved board
-  const handleDeleteSave = () => {
+  const handleDeleteSave = async () => {
     if (selectedSaveIndex === -1) return
 
     // If we haven't shown confirmation yet
@@ -1694,18 +1755,32 @@ function App() {
       return
     }
 
-    // Remove the selected board
-    const newSavedBoards = [...savedBoards]
-    newSavedBoards.splice(selectedSaveIndex, 1)
-
-    // Update state and localStorage
-    setSavedBoards(newSavedBoards)
-    localStorage.setItem('footballTacticsBoards', JSON.stringify(newSavedBoards))
-
-    // Reset selection and hide confirmation
-    setSelectedSaveIndex(-1)
-    setCurrentSaveName('')
-    setShowDeleteConfirm(false)
+    try {
+      if (currentUser) {
+        // Delete from Firebase
+        await deleteTacticsBoard(currentUser.uid, savedBoards[selectedSaveIndex].name)
+        
+        // Refresh the saved boards list from server
+        const userBoards = await getUserTacticsBoards(currentUser.uid)
+        setSavedBoards(userBoards)
+      } else {
+        // Fall back to localStorage if somehow we got here without being logged in
+        const newSavedBoards = [...savedBoards]
+        newSavedBoards.splice(selectedSaveIndex, 1)
+        
+        // Update state and localStorage
+        setSavedBoards(newSavedBoards)
+        localStorage.setItem('footballTacticsBoards', JSON.stringify(newSavedBoards))
+      }
+      
+      // Reset selection and hide confirmation
+      setSelectedSaveIndex(-1)
+      setCurrentSaveName('')
+      setShowDeleteConfirm(false)
+    } catch (error) {
+      console.error('Error deleting board:', error)
+      alert('Failed to delete your board. Please try again.')
+    }
   }
 
   // Cancel the save/load process
@@ -1716,6 +1791,24 @@ function App() {
     setShowOverwriteConfirm(false);
     setShowDeleteConfirm(false);
   }
+
+  // Handle auth modal close
+  const handleAuthModalClose = () => {
+    setShowAuthModal(false)
+    setAuthAction('')
+  }
+
+  // Continue with save/load after successful login
+  useEffect(() => {
+    if (currentUser && authAction) {
+      if (authAction === 'save') {
+        setViewMode('save')
+      } else if (authAction === 'load') {
+        setViewMode('load')
+      }
+      setAuthAction('')
+    }
+  }, [currentUser, authAction])
 
   // Helper function to get position abbreviations based on formation and player index
   const getPositionAbbreviation = (formation, index) => {
@@ -2233,6 +2326,17 @@ function App() {
                 Load
               </button>
             </div>
+            <div className="button-row">
+              {currentUser ? (
+                <button onClick={() => setShowUserProfile(true)}>
+                  Profile
+                </button>
+              ) : (
+                <button onClick={() => setShowAuthModal(true)}>
+                  Login / Sign Up
+                </button>
+              )}
+            </div>
           </div>
         </div>
         
@@ -2609,7 +2713,7 @@ function App() {
                           onDragStart={handleDragStart}
                           onDragEnd={handleDragEnd}
                         >
-                          <Text
+                          <KonvaText
                             text={shape.text}
                             fill={shape.color}
                             fontSize={16}
@@ -2717,7 +2821,7 @@ function App() {
                         stroke="#000000"
                         strokeWidth={2}
                       />
-                      <Text
+                      <KonvaText
                         x={-4}
                         y={-6}
                         text={typeof playerNumbers[player.id] === 'object' 
@@ -2728,7 +2832,7 @@ function App() {
                         fontStyle="bold"
                       />
                       {playerNumbers[player.id]?.name && (
-                        <Text
+                        <KonvaText
                           x={-playerRadius}
                           y={playerRadius + 5}
                           text={playerNumbers[player.id].name}
@@ -3104,6 +3208,12 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* Auth Modal */}
+      {showAuthModal && <Auth onClose={handleAuthModalClose} />}
+      
+      {/* User Profile */}
+      {showUserProfile && <UserProfile onClose={() => setShowUserProfile(false)} />}
     </div>
   )
 }
