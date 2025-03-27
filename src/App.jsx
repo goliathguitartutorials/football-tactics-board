@@ -392,8 +392,23 @@ function App() {
   }
 
   const handleMouseDown = (e) => {
+    // Make sure we get the pointer position for both mouse and touch events
     const clickedOnEmpty = e.target === e.target.getStage()
-    const pos = e.target.getStage().getPointerPosition()
+    const stage = e.target.getStage()
+    let pos = stage.getPointerPosition()
+    
+    // If touch event has no coordinates, try to get from touch data
+    if (!pos && e.evt.touches && e.evt.touches.length > 0) {
+      const touch = e.evt.touches[0]
+      const rect = stage.container().getBoundingClientRect()
+      pos = {
+        x: touch.clientX - rect.left,
+        y: touch.clientY - rect.top
+      }
+    }
+    
+    // Safety check to ensure we have a position
+    if (!pos) return
     
     // If clicked on an object or background
     if (!clickedOnEmpty) {
@@ -608,7 +623,22 @@ function App() {
   }
 
   const handleMouseMove = (e) => {
-    const pos = e.target.getStage().getPointerPosition()
+    // Get pointer position for both mouse and touch events
+    const stage = e.target.getStage()
+    let pos = stage.getPointerPosition()
+    
+    // If touch event has no coordinates, try to get from touch data
+    if (!pos && e.evt.touches && e.evt.touches.length > 0) {
+      const touch = e.evt.touches[0]
+      const rect = stage.container().getBoundingClientRect()
+      pos = {
+        x: touch.clientX - rect.left,
+        y: touch.clientY - rect.top
+      }
+    }
+    
+    // Safety check to ensure we have a position
+    if (!pos) return
     
     // Handle selection box
     if (isSelecting && activeTool === 'select') {
@@ -648,56 +678,65 @@ function App() {
   }
 
   const handleMouseUp = (e) => {
-    // Handle finishing the selection box
-    if (isSelecting && activeTool === 'select') {
-      setIsSelecting(false)
+    // Get pointer position for both mouse and touch events
+    const stage = e.target.getStage()
+    let pos = stage.getPointerPosition()
+    
+    // If touch event has no coordinates, try to get from touch data
+    if (!pos && e.evt.changedTouches && e.evt.changedTouches.length > 0) {
+      const touch = e.evt.changedTouches[0]
+      const rect = stage.container().getBoundingClientRect()
+      pos = {
+        x: touch.clientX - rect.left,
+        y: touch.clientY - rect.top
+      }
+    }
+    
+    // Safety check to ensure we have a position
+    if (!pos) return
+    
+    // Handle selection box completed
+    if (isSelecting) {
+      // Find players in selection box
+      const normalizedBox = normalizeSelectionBox(selectionBox)
+      const playersInBox = players.filter(player => 
+        isInSelectionBox(player.x, player.y, normalizedBox)
+      )
       
-      // Normalize the selection box coordinates
-      const box = normalizeSelectionBox(selectionBox)
-      
-      // Find all items within the selection box
-      const selectedPlayerIds = players.filter(player => 
-        isInSelectionBox(player.x, player.y, box)
-      ).map(player => player.id)
-      
-      const selectedShapeIds = shapes.filter(shape => {
+      const shapesInBox = shapes.filter(shape => {
         if (shape.type === 'line' || shape.type === 'arrow') {
-          // For lines/arrows, check if any point is in the box
+          // Check if any point of the line is in box
           for (let i = 0; i < shape.points.length; i += 2) {
-            if (isInSelectionBox(shape.points[i], shape.points[i + 1], box)) {
+            if (isInSelectionBox(shape.points[i], shape.points[i + 1], normalizedBox)) {
               return true
             }
           }
           return false
-        } else if (shape.type === 'box' || shape.type === 'circle') {
-          // For box/circle, check if center is in the box
-          const centerX = shape.x + (shape.width / 2)
-          const centerY = shape.y + (shape.height / 2)
-          return isInSelectionBox(centerX, centerY, box)
-        } else if (shape.type === 'football') {
-          // For football, check if center is in the box
-          return isInSelectionBox(shape.x, shape.y, box)
+        } else {
+          // For other shapes, check center point
+          const centerX = shape.x + (shape.width ? shape.width / 2 : 0)
+          const centerY = shape.y + (shape.height ? shape.height / 2 : 0)
+          return isInSelectionBox(centerX, centerY, normalizedBox)
         }
-        return false
-      }).map(shape => shape.id)
+      })
       
-      // Combine existing and new selections if shift key is pressed
-      const newSelection = e.evt.shiftKey 
-        ? [...new Set([...selectedItems, ...selectedPlayerIds, ...selectedShapeIds])]
-        : [...selectedPlayerIds, ...selectedShapeIds]
+      // Combine IDs of all objects in the selection box
+      const selectedPlayerIds = playersInBox.map(player => player.id)
+      const selectedShapeIds = shapesInBox.map(shape => shape.id)
+      const allSelectedIds = [...selectedPlayerIds, ...selectedShapeIds]
       
-      setSelectedItems(newSelection)
+      // Update selected items
+      setSelectedItems(allSelectedIds)
       
-      // Clear the selection box
+      // Reset selection box and selecting state
       setSelectionBox(null)
+      setIsSelecting(false)
       return
     }
     
-    if (!isDrawing) return
-    
-    setIsDrawing(false)
-    
-    if (newShape) {
+    // Handle completed drawing
+    if (isDrawing) {
+      // Handle shape drawing completion
       setShapes([...shapes, newShape])
       setNewShape(null)
       setActionTaken(true) // Mark that an action was taken
@@ -2194,6 +2233,9 @@ function App() {
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
+                onTouchStart={handleMouseDown}
+                onTouchMove={handleMouseMove}
+                onTouchEnd={handleMouseUp}
               >
                 <Layer>
                   {/* Football pitch background */}
