@@ -21,7 +21,6 @@ body {
 }
 
 .tactics-board {
-  max-width: 1200px;
   width: 100%;
   margin: 0 auto;
   padding: 20px;
@@ -44,6 +43,7 @@ h1 {
   width: 100%;
   gap: 20px;
   align-items: flex-start;
+  justify-content: flex-start;
 }
 
 .sidebar-toolbar {
@@ -80,12 +80,13 @@ h1 {
 .toolbar-section .category-label {
   font-size: 14px;
   color: #ddd;
-  margin: 5px 0;
+  margin: 3px 0;
 }
 
 .button-row {
   display: flex;
   gap: 5px;
+  margin-bottom: 2px;
 }
 
 .button-row button {
@@ -289,6 +290,7 @@ button:disabled, button.disabled {
   display: flex;
   justify-content: center;
   align-items: center;
+  position: relative;
 }
 
 /* Number editor overlay styles */
@@ -914,4 +916,32 @@ input[type="color"] {
 /* Make sure the stage is properly sized */
 .konvajs-content {
   margin: 0 auto;
+}
+
+/* Fullscreen button */
+.fullscreen-button {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  width: 30px;
+  height: 30px;
+  background-color: rgba(0, 0, 0, 0.5);
+  border: 1px solid #fff;
+  border-radius: 4px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  z-index: 10;
+}
+
+.fullscreen-button svg {
+  width: 18px;
+  height: 18px;
+  color: #fff;
+}
+
+/* Special spacing for the row after player edit buttons */
+.toolbar-section .button-row:last-child {
+  margin-top: 8px;
 }

@@ -10,6 +10,9 @@ function App() {
   const [isDrawing, setIsDrawing] = useState(false)
   const [newShape, setNewShape] = useState(null)
   const [selectedId, setSelectedId] = useState(null)
+  const [selectedItems, setSelectedItems] = useState([])
+  const [selectionBox, setSelectionBox] = useState(null)
+  const [isSelecting, setIsSelecting] = useState(false)
   const [playerNumbers, setPlayerNumbers] = useState({})
   const [showNumberEditor, setShowNumberEditor] = useState(false)
   const [editingPlayer, setEditingPlayer] = useState(null)
@@ -73,7 +76,7 @@ function App() {
   // Determine stage dimensions based on orientation and available space
   const getStageDimensions = () => {
     // Available space calculation
-    const availableWidth = Math.min(windowDimensions.width * 0.95, 1200) - sidebarWidth - 40; // 40px for padding
+    const availableWidth = windowDimensions.width - sidebarWidth - 40; // 40px for padding
     const availableHeight = windowDimensions.height - headerHeight - 40; // 40px for padding
     
     if (verticalOrientation) {
@@ -103,13 +106,28 @@ function App() {
     }
   };
 
-  const stageDimensions = getStageDimensions()
+  // Use state for stage dimensions to make it reactive
+  const [stageDimensions, setStageDimensions] = useState(getStageDimensions())
   const stageWidth = stageDimensions.width
   const stageHeight = stageDimensions.height
   
+  // Update stage dimensions when window size or orientation changes
+  useEffect(() => {
+    const newDimensions = getStageDimensions();
+    setStageDimensions(newDimensions);
+  }, [windowDimensions, verticalOrientation]);
+  
+  // Initialize the previous dimensions ref after the first render
+  useEffect(() => {
+    if (prevStageDimensionsRef.current.width === 0) {
+      prevStageDimensionsRef.current = { ...stageDimensions };
+    }
+  }, [stageDimensions]);
+
   const playerRadius = 15
   const stageRef = useRef(null)
   const consoleInputRef = useRef(null)
+  const prevStageDimensionsRef = useRef({ width: 0, height: 0 })
 
   // Track window resize
   useEffect(() => {
@@ -123,6 +141,86 @@ function App() {
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
+
+  // Scale elements when stage dimensions change due to window resize
+  useEffect(() => {
+    const prevDimensions = prevStageDimensionsRef.current;
+    const { width: currentWidth, height: currentHeight } = stageDimensions;
+    
+    // Skip initial render and only scale when we have elements to scale
+    // and when the dimensions actually change
+    if (prevDimensions.width > 0 && prevDimensions.height > 0 && 
+        (currentWidth !== prevDimensions.width || currentHeight !== prevDimensions.height) &&
+        (players.length > 0 || shapes.length > 0)) {
+      
+      // Calculate scale factors
+      const widthScale = currentWidth / prevDimensions.width;
+      const heightScale = currentHeight / prevDimensions.height;
+      
+      // Only proceed if there's an actual change in dimensions
+      if (widthScale !== 1 || heightScale !== 1) {
+        console.log('Scaling elements to match new pitch size', widthScale, heightScale);
+        // Scale players
+        if (players.length > 0) {
+          const scaledPlayers = players.map(player => ({
+            ...player,
+            x: player.x * widthScale,
+            y: player.y * heightScale
+          }));
+          setPlayers(scaledPlayers);
+        }
+        
+        // Scale shapes (football, cones, lines, arrows, etc.)
+        if (shapes.length > 0) {
+          const scaledShapes = shapes.map(shape => {
+            // Handle different shape types
+            if (shape.type === 'line' || shape.type === 'arrow') {
+              // Transform points for lines and arrows
+              const transformedPoints = [];
+              for (let i = 0; i < shape.points.length; i += 2) {
+                transformedPoints.push(
+                  shape.points[i] * widthScale,
+                  shape.points[i + 1] * heightScale
+                );
+              }
+              return { ...shape, points: transformedPoints };
+            } else if (shape.type === 'box') {
+              // Scale box coordinates and dimensions
+              return {
+                ...shape,
+                x: shape.x * widthScale,
+                y: shape.y * heightScale,
+                width: shape.width * widthScale,
+                height: shape.height * heightScale
+              };
+            } else if (shape.type === 'circle') {
+              // Scale circle coordinates and dimensions
+              return {
+                ...shape,
+                x: shape.x * widthScale,
+                y: shape.y * heightScale,
+                width: shape.width * widthScale,
+                height: shape.height * heightScale
+              };
+            } else if (shape.type === 'football' || shape.type === 'cone') {
+              // Scale position and optionally radius for balls and cones
+              return {
+                ...shape,
+                x: shape.x * widthScale,
+                y: shape.y * heightScale,
+                radius: shape.radius * Math.min(widthScale, heightScale) // Use minimum scale for consistent appearance
+              };
+            }
+            return shape;
+          });
+          setShapes(scaledShapes);
+        }
+      }
+    }
+    
+    // Update previous dimensions for next resize
+    prevStageDimensionsRef.current = { ...stageDimensions };
+  }, [stageDimensions]);
 
   // Add default ball in the center of the pitch
   useEffect(() => {
@@ -1567,11 +1665,6 @@ function App() {
     closeTeamDialog();
   };
 
-  // Selection tool states
-  const [selectionBox, setSelectionBox] = useState(null)
-  const [selectedItems, setSelectedItems] = useState([])
-  const [isSelecting, setIsSelecting] = useState(false)
-
   // Handle editing a team (when team edit mode is active)
   const handleEditTeam = (teamColor) => {
     // Find all players with this color
@@ -1676,6 +1769,35 @@ function App() {
     });
   };
 
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  
+  // Handle fullscreen toggle
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(err => {
+        console.log(`Error attempting to enable fullscreen: ${err.message}`);
+      });
+      setIsFullscreen(true);
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+        setIsFullscreen(false);
+      }
+    }
+  };
+  
+  // Listen for fullscreen change events
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+
   return (
     <div className="tactics-board" tabIndex={0} onKeyDown={handleKeyDown}>
       <h1>Football Tactics Board</h1>
@@ -1772,8 +1894,9 @@ function App() {
             </div>
             <div className="button-row">
               <button 
-                className={`single-button ${activeTool === 'cone' ? 'active' : ''}`} 
+                className={activeTool === 'cone' ? 'active' : ''} 
                 onClick={() => handleToolToggle('cone')}
+                style={{ width: '100%' }}
               >
                 Cone
               </button>
@@ -1879,485 +2002,498 @@ function App() {
         
         <div className="canvas-container" style={{ width: stageWidth, height: stageHeight }}>
           {viewMode === 'board' ? (
-            <Stage
-              ref={stageRef}
-              width={stageWidth}
-              height={stageHeight}
-              onMouseDown={handleMouseDown}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
-            >
-              <Layer>
-                {/* Football pitch background */}
-                <Rect
-                  x={0}
-                  y={0}
-                  width={stageWidth}
-                  height={stageHeight}
-                  fill="#4CAF50"
-                  stroke="#FFFFFF"
-                  strokeWidth={2}
-                />
-                
-                {verticalOrientation ? (
-                  // Vertical pitch elements
-                  <>
-                    {/* Center circle */}
-                    <Circle
-                      x={stageWidth / 2}
-                      y={stageHeight / 2}
-                      radius={stageWidth / 5}
-                      stroke="#FFFFFF"
-                      strokeWidth={2}
-                    />
-                    
-                    {/* Center line (horizontal for vertical field) */}
-                    <Line
-                      points={[0, stageHeight / 2, stageWidth, stageHeight / 2]}
-                      stroke="#FFFFFF"
-                      strokeWidth={2}
-                    />
-                    
-                    {/* Top goal area (six-yard box) */}
-                    <Rect
-                      x={(stageWidth - stageWidth * 0.275) / 2}
-                      y={0}
-                      width={stageWidth * 0.275}
-                      height={stageHeight * 0.055}
-                      stroke="#FFFFFF"
-                      strokeWidth={2}
-                    />
-                    
-                    {/* Bottom goal area (six-yard box) */}
-                    <Rect
-                      x={(stageWidth - stageWidth * 0.275) / 2}
-                      y={stageHeight - stageHeight * 0.055}
-                      width={stageWidth * 0.275}
-                      height={stageHeight * 0.055}
-                      stroke="#FFFFFF"
-                      strokeWidth={2}
-                    />
-                    
-                    {/* Top penalty area */}
-                    <Rect
-                      x={(stageWidth - stageWidth * 0.6) / 2}
-                      y={0}
-                      width={stageWidth * 0.6}
-                      height={stageHeight * 0.16}
-                      stroke="#FFFFFF"
-                      strokeWidth={2}
-                    />
-                    
-                    {/* Bottom penalty area */}
-                    <Rect
-                      x={(stageWidth - stageWidth * 0.6) / 2}
-                      y={stageHeight - stageHeight * 0.16}
-                      width={stageWidth * 0.6}
-                      height={stageHeight * 0.16}
-                      stroke="#FFFFFF"
-                      strokeWidth={2}
-                    />
-                    
-                    {/* Top penalty spot */}
-                    <Circle
-                      x={stageWidth / 2}
-                      y={stageHeight * 0.11}
-                      radius={stageWidth / 150}
-                      fill="#FFFFFF"
-                    />
-                    
-                    {/* Bottom penalty spot */}
-                    <Circle
-                      x={stageWidth / 2}
-                      y={stageHeight - stageHeight * 0.11}
-                      radius={stageWidth / 150}
-                      fill="#FFFFFF"
-                    />
-                    
-                    {/* Top penalty area 'D' arc */}
-                    <Arc
-                      x={stageWidth / 2}
-                      y={stageHeight * 0.905}
-                      innerRadius={stageWidth * 0.2}
-                      outerRadius={stageWidth * 0.2}
-                      angle={120}
-                      rotation={210}
-                      stroke="#FFFFFF"
-                      strokeWidth={2}
-                    />
-                    
-                    {/* Bottom penalty area 'D' arc */}
-                    <Arc
-                      x={stageWidth / 2}
-                      y={stageHeight - stageHeight * 0.905}
-                      innerRadius={stageWidth * 0.2}
-                      outerRadius={stageWidth * 0.2}
-                      angle={120}
-                      rotation={30}
-                      stroke="#FFFFFF"
-                      strokeWidth={2}
-                    />
-                  </>
-                ) : (
-                  // Horizontal pitch elements
-                  <>
-                    {/* Center circle */}
-                    <Circle
-                      x={stageWidth / 2}
-                      y={stageHeight / 2}
-                      radius={stageHeight / 5}
-                      stroke="#FFFFFF"
-                      strokeWidth={2}
-                    />
-                    
-                    {/* Center line */}
-                    <Line
-                      points={[stageWidth / 2, 0, stageWidth / 2, stageHeight]}
-                      stroke="#FFFFFF"
-                      strokeWidth={2}
-                    />
-                    
-                    {/* Left goal area (six-yard box) */}
-                    <Rect
-                      x={0}
-                      y={(stageHeight - stageHeight * 0.275) / 2}
-                      width={stageWidth * 0.055}
-                      height={stageHeight * 0.275}
-                      stroke="#FFFFFF"
-                      strokeWidth={2}
-                    />
-                    
-                    {/* Right goal area (six-yard box) */}
-                    <Rect
-                      x={stageWidth - stageWidth * 0.055}
-                      y={(stageHeight - stageHeight * 0.275) / 2}
-                      width={stageWidth * 0.055}
-                      height={stageHeight * 0.275}
-                      stroke="#FFFFFF"
-                      strokeWidth={2}
-                    />
-                    
-                    {/* Left penalty area */}
-                    <Rect
-                      x={0}
-                      y={(stageHeight - stageHeight * 0.6) / 2}
-                      width={stageWidth * 0.16}
-                      height={stageHeight * 0.6}
-                      stroke="#FFFFFF"
-                      strokeWidth={2}
-                    />
-                    
-                    {/* Right penalty area */}
-                    <Rect
-                      x={stageWidth - stageWidth * 0.16}
-                      y={(stageHeight - stageHeight * 0.6) / 2}
-                      width={stageWidth * 0.16}
-                      height={stageHeight * 0.6}
-                      stroke="#FFFFFF"
-                      strokeWidth={2}
-                    />
-                    
-                    {/* Left penalty spot */}
-                    <Circle
-                      x={stageWidth * 0.11}
-                      y={stageHeight / 2}
-                      radius={stageHeight / 150}
-                      fill="#FFFFFF"
-                    />
-                    
-                    {/* Right penalty spot */}
-                    <Circle
-                      x={stageWidth - stageWidth * 0.11}
-                      y={stageHeight / 2}
-                      radius={stageHeight / 150}
-                      fill="#FFFFFF"
-                    />
-                    
-                    {/* Left penalty area 'D' arc */}
-                    <Arc
-                      x={stageWidth * 0.095}
-                      y={stageHeight / 2}
-                      innerRadius={stageHeight * 0.2}
-                      outerRadius={stageHeight * 0.2}
-                      angle={120}
-                      rotation={300}
-                      stroke="#FFFFFF"
-                      strokeWidth={2}
-                    />
-                    
-                    {/* Right penalty area 'D' arc */}
-                    <Arc
-                      x={stageWidth - stageWidth * 0.095}
-                      y={stageHeight / 2}
-                      innerRadius={stageHeight * 0.2}
-                      outerRadius={stageHeight * 0.2}
-                      angle={120}
-                      rotation={120}
-                      stroke="#FFFFFF"
-                      strokeWidth={2}
-                    />
-                  </>
-                )}
-                
-                {/* Drawing shapes */}
-                {shapes.map(shape => {
-                  if (shape.type === 'line') {
-                    return (
-                      <Line
-                        key={shape.id}
-                        id={shape.id}
-                        points={shape.points}
-                        stroke={shape.color}
-                        strokeWidth={3}
-                        onClick={() => !activeTool && setSelectedId(shape.id)}
-                        opacity={selectedId === shape.id || selectedItems.includes(shape.id) ? 0.7 : 1}
-                        draggable={true}
-                        onDragStart={handleDragStart}
-                        onDragEnd={handleDragEnd}
-                      />
-                    )
-                  } else if (shape.type === 'arrow') {
-                    return (
-                      <Arrow
-                        key={shape.id}
-                        id={shape.id}
-                        points={shape.points}
-                        pointerLength={10}
-                        pointerWidth={10}
-                        stroke={shape.color}
-                        strokeWidth={3}
-                        onClick={() => !activeTool && setSelectedId(shape.id)}
-                        opacity={selectedId === shape.id || selectedItems.includes(shape.id) ? 0.7 : 1}
-                        draggable={true}
-                        onDragStart={handleDragStart}
-                        onDragEnd={handleDragEnd}
-                      />
-                    )
-                  } else if (shape.type === 'box') {
-                    return (
-                      <Rect
-                        key={shape.id}
-                        id={shape.id}
-                        x={shape.x}
-                        y={shape.y}
-                        width={shape.width}
-                        height={shape.height}
-                        stroke={shape.color}
-                        strokeWidth={3}
-                        fill="transparent"
-                        onClick={() => !activeTool && setSelectedId(shape.id)}
-                        opacity={selectedId === shape.id || selectedItems.includes(shape.id) ? 0.7 : 1}
-                        draggable={true}
-                        onDragStart={handleDragStart}
-                        onDragEnd={handleDragEnd}
-                      />
-                    )
-                  } else if (shape.type === 'circle') {
-                    return (
-                      <Ellipse
-                        key={shape.id}
-                        id={shape.id}
-                        x={shape.x + shape.width / 2}
-                        y={shape.y + shape.height / 2}
-                        radiusX={Math.abs(shape.width / 2)}
-                        radiusY={Math.abs(shape.height / 2)}
-                        stroke={shape.color}
-                        strokeWidth={3}
-                        fill="transparent"
-                        onClick={() => !activeTool && setSelectedId(shape.id)}
-                        opacity={selectedId === shape.id || selectedItems.includes(shape.id) ? 0.7 : 1}
-                        draggable={true}
-                        onDragStart={handleDragStart}
-                        onDragEnd={handleDragEnd}
-                        dragBoundFunc={(pos) => {
-                          // Store position relative to center rather than top-left
-                          return {
-                            x: pos.x,
-                            y: pos.y
-                          };
-                        }}
-                      />
-                    )
-                  } else if (shape.type === 'football') {
-                    return (
+            <>
+              <Stage
+                ref={stageRef}
+                width={stageWidth}
+                height={stageHeight}
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+              >
+                <Layer>
+                  {/* Football pitch background */}
+                  <Rect
+                    x={0}
+                    y={0}
+                    width={stageWidth}
+                    height={stageHeight}
+                    fill="#4CAF50"
+                    stroke="#FFFFFF"
+                    strokeWidth={2}
+                  />
+                  
+                  {verticalOrientation ? (
+                    // Vertical pitch elements
+                    <>
+                      {/* Center circle */}
                       <Circle
-                        key={shape.id}
-                        id={shape.id}
-                        x={shape.x}
-                        y={shape.y}
-                        radius={shape.radius}
-                        fill="#FFFFFF"
-                        stroke="#000000"
-                        strokeWidth={1}
-                        onClick={() => !activeTool && setSelectedId(shape.id)}
-                        opacity={selectedId === shape.id ? 0.7 : 1}
-                        draggable={true}
-                        onDragStart={handleDragStart}
-                        onDragEnd={(e) => {
-                          const id = e.target.id();
-                          const updatedShapes = shapes.map(s => {
-                            if (s.id === id) {
-                              return {
-                                ...s,
-                                x: e.target.x(),
-                                y: e.target.y()
-                              };
-                            }
-                            return s;
-                          });
-                          setShapes(updatedShapes);
-                          setActionTaken(true);
-                        }}
+                        x={stageWidth / 2}
+                        y={stageHeight / 2}
+                        radius={stageWidth / 5}
+                        stroke="#FFFFFF"
+                        strokeWidth={2}
                       />
-                    )
-                  } else if (shape.type === 'cone') {
-                    return (
-                      <Group
-                        key={shape.id}
-                        id={shape.id}
-                        x={shape.x}
-                        y={shape.y}
-                        onClick={() => !activeTool && setSelectedId(shape.id)}
-                        opacity={selectedId === shape.id || selectedItems.includes(shape.id) ? 0.7 : 1}
-                        draggable={true}
-                        onDragStart={handleDragStart}
-                        onDragEnd={handleDragEnd}
-                      >
-                        {/* Cone shape (triangle) */}
-                        <Line
-                          points={[0, -15, 10, 10, -10, 10]}
-                          closed={true}
-                          fill={shape.color}
-                          stroke={shape.strokeColor}
-                          strokeWidth={2}
-                        />
-                      </Group>
-                    )
-                  }
-                  return null
-                })}
-                
-                {/* Currently drawing shape */}
-                {newShape && (() => {
-                  if (newShape.type === 'line') {
-                    return (
+                      
+                      {/* Center line (horizontal for vertical field) */}
                       <Line
-                        points={newShape.points}
-                        stroke={newShape.color}
-                        strokeWidth={3}
-                        dashEnabled={true}
-                        dash={[5, 5]}
+                        points={[0, stageHeight / 2, stageWidth, stageHeight / 2]}
+                        stroke="#FFFFFF"
+                        strokeWidth={2}
                       />
-                    )
-                  } else if (newShape.type === 'arrow') {
-                    return (
-                      <Arrow
-                        points={newShape.points}
-                        pointerLength={10}
-                        pointerWidth={10}
-                        stroke={newShape.color}
-                        strokeWidth={3}
-                        dashEnabled={true}
-                        dash={[5, 5]}
-                      />
-                    )
-                  } else if (newShape.type === 'box') {
-                    return (
+                      
+                      {/* Top goal area (six-yard box) */}
                       <Rect
-                        x={newShape.x}
-                        y={newShape.y}
-                        width={newShape.width}
-                        height={newShape.height}
-                        stroke={newShape.color}
-                        strokeWidth={3}
-                        dashEnabled={true}
-                        dash={[5, 5]}
-                        fill="transparent"
+                        x={(stageWidth - stageWidth * 0.275) / 2}
+                        y={0}
+                        width={stageWidth * 0.275}
+                        height={stageHeight * 0.055}
+                        stroke="#FFFFFF"
+                        strokeWidth={2}
                       />
-                    )
-                  } else if (newShape.type === 'circle') {
-                    return (
-                      <Ellipse
-                        x={newShape.x + newShape.width / 2}
-                        y={newShape.y + newShape.height / 2}
-                        radiusX={Math.abs(newShape.width / 2)}
-                        radiusY={Math.abs(newShape.height / 2)}
-                        stroke={newShape.color}
-                        strokeWidth={3}
-                        dashEnabled={true}
-                        dash={[5, 5]}
-                        fill="transparent"
-                      />
-                    )
-                  }
-                  return null
-                })()}
-                
-                {(() => {
-                  if (selectionBox) {
-                    return (
+                      
+                      {/* Bottom goal area (six-yard box) */}
                       <Rect
-                        x={selectionBox.x}
-                        y={selectionBox.y}
-                        width={selectionBox.width}
-                        height={selectionBox.height}
-                        fill="rgba(0, 150, 255, 0.1)"
-                        stroke="rgba(0, 150, 255, 0.8)"
-                        strokeWidth={1}
-                        dash={[5, 5]}
+                        x={(stageWidth - stageWidth * 0.275) / 2}
+                        y={stageHeight - stageHeight * 0.055}
+                        width={stageWidth * 0.275}
+                        height={stageHeight * 0.055}
+                        stroke="#FFFFFF"
+                        strokeWidth={2}
                       />
-                    )
-                  }
-                  return null
-                })()}
-                
-                {/* Players */}
-                {players.map(player => (
-                  <Group
-                    key={player.id}
-                    id={player.id}
-                    x={player.x}
-                    y={player.y}
-                    draggable={true}
-                    onDragStart={handleDragStart}
-                    onDragEnd={handleDragEnd}
-                    onClick={() => !activeTool && setSelectedId(player.id)}
-                    opacity={selectedId === player.id || selectedItems.includes(player.id) ? 0.7 : 1}
-                  >
-                    <Circle
+                      
+                      {/* Top penalty area */}
+                      <Rect
+                        x={(stageWidth - stageWidth * 0.6) / 2}
+                        y={0}
+                        width={stageWidth * 0.6}
+                        height={stageHeight * 0.16}
+                        stroke="#FFFFFF"
+                        strokeWidth={2}
+                      />
+                      
+                      {/* Bottom penalty area */}
+                      <Rect
+                        x={(stageWidth - stageWidth * 0.6) / 2}
+                        y={stageHeight - stageHeight * 0.16}
+                        width={stageWidth * 0.6}
+                        height={stageHeight * 0.16}
+                        stroke="#FFFFFF"
+                        strokeWidth={2}
+                      />
+                      
+                      {/* Top penalty spot */}
+                      <Circle
+                        x={stageWidth / 2}
+                        y={stageHeight * 0.11}
+                        radius={stageWidth / 150}
+                        fill="#FFFFFF"
+                      />
+                      
+                      {/* Bottom penalty spot */}
+                      <Circle
+                        x={stageWidth / 2}
+                        y={stageHeight - stageHeight * 0.11}
+                        radius={stageWidth / 150}
+                        fill="#FFFFFF"
+                      />
+                      
+                      {/* Top penalty area 'D' arc */}
+                      <Arc
+                        x={stageWidth / 2}
+                        y={stageHeight * 0.905}
+                        innerRadius={stageWidth * 0.2}
+                        outerRadius={stageWidth * 0.2}
+                        angle={120}
+                        rotation={210}
+                        stroke="#FFFFFF"
+                        strokeWidth={2}
+                      />
+                      
+                      {/* Bottom penalty area 'D' arc */}
+                      <Arc
+                        x={stageWidth / 2}
+                        y={stageHeight - stageHeight * 0.905}
+                        innerRadius={stageWidth * 0.2}
+                        outerRadius={stageWidth * 0.2}
+                        angle={120}
+                        rotation={30}
+                        stroke="#FFFFFF"
+                        strokeWidth={2}
+                      />
+                    </>
+                  ) : (
+                    // Horizontal pitch elements
+                    <>
+                      {/* Center circle */}
+                      <Circle
+                        x={stageWidth / 2}
+                        y={stageHeight / 2}
+                        radius={stageHeight / 5}
+                        stroke="#FFFFFF"
+                        strokeWidth={2}
+                      />
+                      
+                      {/* Center line */}
+                      <Line
+                        points={[stageWidth / 2, 0, stageWidth / 2, stageHeight]}
+                        stroke="#FFFFFF"
+                        strokeWidth={2}
+                      />
+                      
+                      {/* Left goal area (six-yard box) */}
+                      <Rect
+                        x={0}
+                        y={(stageHeight - stageHeight * 0.275) / 2}
+                        width={stageWidth * 0.055}
+                        height={stageHeight * 0.275}
+                        stroke="#FFFFFF"
+                        strokeWidth={2}
+                      />
+                      
+                      {/* Right goal area (six-yard box) */}
+                      <Rect
+                        x={stageWidth - stageWidth * 0.055}
+                        y={(stageHeight - stageHeight * 0.275) / 2}
+                        width={stageWidth * 0.055}
+                        height={stageHeight * 0.275}
+                        stroke="#FFFFFF"
+                        strokeWidth={2}
+                      />
+                      
+                      {/* Left penalty area */}
+                      <Rect
+                        x={0}
+                        y={(stageHeight - stageHeight * 0.6) / 2}
+                        width={stageWidth * 0.16}
+                        height={stageHeight * 0.6}
+                        stroke="#FFFFFF"
+                        strokeWidth={2}
+                      />
+                      
+                      {/* Right penalty area */}
+                      <Rect
+                        x={stageWidth - stageWidth * 0.16}
+                        y={(stageHeight - stageHeight * 0.6) / 2}
+                        width={stageWidth * 0.16}
+                        height={stageHeight * 0.6}
+                        stroke="#FFFFFF"
+                        strokeWidth={2}
+                      />
+                      
+                      {/* Left penalty spot */}
+                      <Circle
+                        x={stageWidth * 0.11}
+                        y={stageHeight / 2}
+                        radius={stageHeight / 150}
+                        fill="#FFFFFF"
+                      />
+                      
+                      {/* Right penalty spot */}
+                      <Circle
+                        x={stageWidth - stageWidth * 0.11}
+                        y={stageHeight / 2}
+                        radius={stageHeight / 150}
+                        fill="#FFFFFF"
+                      />
+                      
+                      {/* Left penalty area 'D' arc */}
+                      <Arc
+                        x={stageWidth * 0.095}
+                        y={stageHeight / 2}
+                        innerRadius={stageHeight * 0.2}
+                        outerRadius={stageHeight * 0.2}
+                        angle={120}
+                        rotation={300}
+                        stroke="#FFFFFF"
+                        strokeWidth={2}
+                      />
+                      
+                      {/* Right penalty area 'D' arc */}
+                      <Arc
+                        x={stageWidth - stageWidth * 0.095}
+                        y={stageHeight / 2}
+                        innerRadius={stageHeight * 0.2}
+                        outerRadius={stageHeight * 0.2}
+                        angle={120}
+                        rotation={120}
+                        stroke="#FFFFFF"
+                        strokeWidth={2}
+                      />
+                    </>
+                  )}
+                  
+                  {/* Drawing shapes */}
+                  {shapes.map(shape => {
+                    if (shape.type === 'line') {
+                      return (
+                        <Line
+                          key={shape.id}
+                          id={shape.id}
+                          points={shape.points}
+                          stroke={shape.color}
+                          strokeWidth={3}
+                          onClick={() => !activeTool && setSelectedId(shape.id)}
+                          opacity={selectedId === shape.id || selectedItems.includes(shape.id) ? 0.7 : 1}
+                          draggable={true}
+                          onDragStart={handleDragStart}
+                          onDragEnd={handleDragEnd}
+                        />
+                      )
+                    } else if (shape.type === 'arrow') {
+                      return (
+                        <Arrow
+                          key={shape.id}
+                          id={shape.id}
+                          points={shape.points}
+                          pointerLength={10}
+                          pointerWidth={10}
+                          stroke={shape.color}
+                          strokeWidth={3}
+                          onClick={() => !activeTool && setSelectedId(shape.id)}
+                          opacity={selectedId === shape.id || selectedItems.includes(shape.id) ? 0.7 : 1}
+                          draggable={true}
+                          onDragStart={handleDragStart}
+                          onDragEnd={handleDragEnd}
+                        />
+                      )
+                    } else if (shape.type === 'box') {
+                      return (
+                        <Rect
+                          key={shape.id}
+                          id={shape.id}
+                          x={shape.x}
+                          y={shape.y}
+                          width={shape.width}
+                          height={shape.height}
+                          stroke={shape.color}
+                          strokeWidth={3}
+                          fill="transparent"
+                          onClick={() => !activeTool && setSelectedId(shape.id)}
+                          opacity={selectedId === shape.id || selectedItems.includes(shape.id) ? 0.7 : 1}
+                          draggable={true}
+                          onDragStart={handleDragStart}
+                          onDragEnd={handleDragEnd}
+                        />
+                      )
+                    } else if (shape.type === 'circle') {
+                      return (
+                        <Ellipse
+                          key={shape.id}
+                          id={shape.id}
+                          x={shape.x + shape.width / 2}
+                          y={shape.y + shape.height / 2}
+                          radiusX={Math.abs(shape.width / 2)}
+                          radiusY={Math.abs(shape.height / 2)}
+                          stroke={shape.color}
+                          strokeWidth={3}
+                          fill="transparent"
+                          onClick={() => !activeTool && setSelectedId(shape.id)}
+                          opacity={selectedId === shape.id || selectedItems.includes(shape.id) ? 0.7 : 1}
+                          draggable={true}
+                          onDragStart={handleDragStart}
+                          onDragEnd={handleDragEnd}
+                          dragBoundFunc={(pos) => {
+                            // Store position relative to center rather than top-left
+                            return {
+                              x: pos.x,
+                              y: pos.y
+                            };
+                          }}
+                        />
+                      )
+                    } else if (shape.type === 'football') {
+                      return (
+                        <Circle
+                          key={shape.id}
+                          id={shape.id}
+                          x={shape.x}
+                          y={shape.y}
+                          radius={shape.radius}
+                          fill="#FFFFFF"
+                          stroke="#000000"
+                          strokeWidth={1}
+                          onClick={() => !activeTool && setSelectedId(shape.id)}
+                          opacity={selectedId === shape.id ? 0.7 : 1}
+                          draggable={true}
+                          onDragStart={handleDragStart}
+                          onDragEnd={(e) => {
+                            const id = e.target.id();
+                            const updatedShapes = shapes.map(s => {
+                              if (s.id === id) {
+                                return {
+                                  ...s,
+                                  x: e.target.x(),
+                                  y: e.target.y()
+                                };
+                              }
+                              return s;
+                            });
+                            setShapes(updatedShapes);
+                            setActionTaken(true);
+                          }}
+                        />
+                      )
+                    } else if (shape.type === 'cone') {
+                      return (
+                        <Group
+                          key={shape.id}
+                          id={shape.id}
+                          x={shape.x}
+                          y={shape.y}
+                          onClick={() => !activeTool && setSelectedId(shape.id)}
+                          opacity={selectedId === shape.id || selectedItems.includes(shape.id) ? 0.7 : 1}
+                          draggable={true}
+                          onDragStart={handleDragStart}
+                          onDragEnd={handleDragEnd}
+                        >
+                          {/* Cone shape (triangle) */}
+                          <Line
+                            points={[0, -15, 10, 10, -10, 10]}
+                            closed={true}
+                            fill={shape.color}
+                            stroke={shape.strokeColor}
+                            strokeWidth={2}
+                          />
+                        </Group>
+                      )
+                    }
+                    return null
+                  })}
+                  
+                  {/* Currently drawing shape */}
+                  {newShape && (() => {
+                    if (newShape.type === 'line') {
+                      return (
+                        <Line
+                          points={newShape.points}
+                          stroke={newShape.color}
+                          strokeWidth={3}
+                          dashEnabled={true}
+                          dash={[5, 5]}
+                        />
+                      )
+                    } else if (newShape.type === 'arrow') {
+                      return (
+                        <Arrow
+                          points={newShape.points}
+                          pointerLength={10}
+                          pointerWidth={10}
+                          stroke={newShape.color}
+                          strokeWidth={3}
+                          dashEnabled={true}
+                          dash={[5, 5]}
+                        />
+                      )
+                    } else if (newShape.type === 'box') {
+                      return (
+                        <Rect
+                          x={newShape.x}
+                          y={newShape.y}
+                          width={newShape.width}
+                          height={newShape.height}
+                          stroke={newShape.color}
+                          strokeWidth={3}
+                          dashEnabled={true}
+                          dash={[5, 5]}
+                          fill="transparent"
+                        />
+                      )
+                    } else if (newShape.type === 'circle') {
+                      return (
+                        <Ellipse
+                          x={newShape.x + newShape.width / 2}
+                          y={newShape.y + newShape.height / 2}
+                          radiusX={Math.abs(newShape.width / 2)}
+                          radiusY={Math.abs(newShape.height / 2)}
+                          stroke={newShape.color}
+                          strokeWidth={3}
+                          dashEnabled={true}
+                          dash={[5, 5]}
+                          fill="transparent"
+                        />
+                      )
+                    }
+                    return null
+                  })()}
+                  
+                  {(() => {
+                    if (selectionBox) {
+                      return (
+                        <Rect
+                          x={selectionBox.x}
+                          y={selectionBox.y}
+                          width={selectionBox.width}
+                          height={selectionBox.height}
+                          fill="rgba(0, 150, 255, 0.1)"
+                          stroke="rgba(0, 150, 255, 0.8)"
+                          strokeWidth={1}
+                          dash={[5, 5]}
+                        />
+                      )
+                    }
+                    return null
+                  })()}
+                  
+                  {/* Players */}
+                  {players.map(player => (
+                    <Group
+                      key={player.id}
                       id={player.id}
-                      x={0}
-                      y={0}
-                      radius={playerRadius}
-                      fill={player.color}
-                      stroke="#000000"
-                      strokeWidth={2}
-                    />
-                    <Text
-                      x={-4}
-                      y={-6}
-                      text={typeof playerNumbers[player.id] === 'object' 
-                        ? playerNumbers[player.id]?.number || '' 
-                        : playerNumbers[player.id]?.toString() || ''}
-                      fill="#FFFFFF"
-                      fontSize={12}
-                      fontStyle="bold"
-                    />
-                    {playerNumbers[player.id]?.name && (
-                      <Text
-                        x={-playerRadius}
-                        y={playerRadius + 5}
-                        text={playerNumbers[player.id].name}
-                        fill="#000000"
-                        fontSize={10}
-                        width={playerRadius * 2}
-                        align="center"
+                      x={player.x}
+                      y={player.y}
+                      draggable={true}
+                      onDragStart={handleDragStart}
+                      onDragEnd={handleDragEnd}
+                      onClick={() => !activeTool && setSelectedId(player.id)}
+                      opacity={selectedId === player.id || selectedItems.includes(player.id) ? 0.7 : 1}
+                    >
+                      <Circle
+                        id={player.id}
+                        x={0}
+                        y={0}
+                        radius={playerRadius}
+                        fill={player.color}
+                        stroke="#000000"
+                        strokeWidth={2}
                       />
-                    )}
-                  </Group>
-                ))}
-              </Layer>
-            </Stage>
+                      <Text
+                        x={-4}
+                        y={-6}
+                        text={typeof playerNumbers[player.id] === 'object' 
+                          ? playerNumbers[player.id]?.number || '' 
+                          : playerNumbers[player.id]?.toString() || ''}
+                        fill="#FFFFFF"
+                        fontSize={12}
+                        fontStyle="bold"
+                      />
+                      {playerNumbers[player.id]?.name && (
+                        <Text
+                          x={-playerRadius}
+                          y={playerRadius + 5}
+                          text={playerNumbers[player.id].name}
+                          fill="#000000"
+                          fontSize={10}
+                          width={playerRadius * 2}
+                          align="center"
+                        />
+                      )}
+                    </Group>
+                  ))}
+                </Layer>
+              </Stage>
+              <div className="fullscreen-button" onClick={toggleFullscreen}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  {isFullscreen ? (
+                    // Exit fullscreen icon
+                    <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" />
+                  ) : (
+                    // Enter fullscreen icon
+                    <path d="M3 8V5a2 2 0 0 1 2-2h3m6 0h3a2 2 0 0 1 2 2v3m0 6v3a2 2 0 0 1-2 2h-3m-6 0H5a2 2 0 0 1-2-2v-3" />
+                  )}
+                </svg>
+              </div>
+            </>
           ) : viewMode === 'save' ? (
             <div className="save-load-container">
               <h2>Save Tactics Board</h2>
