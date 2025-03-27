@@ -1,12 +1,55 @@
-# React + Vite
+# Football Tactics Board
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+An interactive football tactics board built with React and Konva. Design formations, set plays, and create tactical diagrams for football coaching.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- Interactive canvas for drawing tactical diagrams
+- Place and move players on the pitch
+- Add footballs, arrows, lines, and other shapes
+- Multiple color options for different teams
+- Formation templates for quick setup
+- Save and load board states
+- Player numbering
 
-## Expanding the ESLint configuration
+## Tech Stack
 
-If you are developing a production application, we recommend using TypeScript and enable type-aware lint rules. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+- React 19
+- Vite 6
+- React Konva for canvas manipulation
+
+## Development
+
+```bash
+# Install dependencies
+npm install
+
+# Run development server
+npm run dev
+
+# Build for production
+npm run build
+
+# Preview production build
+npm run preview
+```
+
+## Deployment
+
+This project is configured for GitHub Pages deployment. The deployment happens automatically when changes are pushed to the main branch, using GitHub Actions.
+
+### Manual Deployment
+
+If you need to deploy manually:
+
+1. Build the project: `npm run build`
+2. The built files will be in the `dist` directory
+3. These files can be deployed to any static hosting service
+
+## Browser Support
+
+Tested and working on modern browsers (Chrome, Firefox, Edge, Safari).
+
+## License
+
+MIT
