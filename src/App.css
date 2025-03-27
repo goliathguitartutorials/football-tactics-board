@@ -800,3 +800,66 @@ input[type="color"] {
   color: white;
   border: 1px solid #4CAF50;
 }
+
+/* Player Edit Dialog */
+.player-edit-dialog {
+  background-color: #333;
+  border-radius: 8px;
+  width: 400px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.player-edit-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
+  border-bottom: 1px solid #555;
+}
+
+.player-edit-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: #fff;
+}
+
+.player-edit-body {
+  flex: 1;
+  padding: 20px;
+  color: #fff;
+}
+
+.player-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.form-group label {
+  font-weight: bold;
+}
+
+.form-group input {
+  padding: 8px;
+  border-radius: 4px;
+  background-color: #444;
+  color: #fff;
+  border: 1px solid #666;
+}
+
+.player-edit-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 15px 20px;
+  border-top: 1px solid #555;
+}

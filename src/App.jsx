@@ -44,6 +44,17 @@ function App() {
     teamColor: '#FF0000'
   })
   
+  // Edit modes
+  const [editMode, setEditMode] = useState(null) // null, 'team', 'player'
+  
+  // Player edit dialog
+  const [showPlayerEditDialog, setShowPlayerEditDialog] = useState(false)
+  const [editingPlayerData, setEditingPlayerData] = useState({
+    id: '',
+    number: '',
+    name: ''
+  })
+  
   // Save/Load functionality
   const [viewMode, setViewMode] = useState('board') // 'board', 'save', 'load'
   const [savedBoards, setSavedBoards] = useState([])
@@ -182,11 +193,34 @@ function App() {
     if (activeTool === tool) {
       // Toggle off if already active
       setActiveTool(null)
+      // Clear selection when deactivating the select tool
+      if (tool === 'select') {
+        setSelectedItems([])
+      }
     } else {
       // Toggle on if not active
       setActiveTool(tool)
+      
+      // Clear selection when switching to a different tool
+      if (activeTool === 'select' && tool !== 'select') {
+        setSelectedItems([])
+      }
     }
+    // Clear edit mode when switching tools
+    setEditMode(null)
     setSelectedId(null)
+  }
+
+  const handleEditModeToggle = (mode) => {
+    if (editMode === mode) {
+      // Toggle off if already active
+      setEditMode(null)
+    } else {
+      // Toggle on if not active
+      setEditMode(mode)
+      // Clear any active tool
+      setActiveTool(null)
+    }
   }
 
   const handleColorChange = (newColor) => {
@@ -202,6 +236,7 @@ function App() {
 
   const handleMouseDown = (e) => {
     const clickedOnEmpty = e.target === e.target.getStage()
+    const pos = e.target.getStage().getPointerPosition()
     
     // If clicked on an object or background
     if (!clickedOnEmpty) {
@@ -215,9 +250,65 @@ function App() {
         return
       }
       
-      // Select the clicked object if not using a drawing tool
-      if (!activeTool || activeTool === 'delete') {
+      // Handle edit team mode
+      if (editMode === 'team' && id && id.startsWith('player')) {
+        const player = players.find(p => p.id === id)
+        if (player) {
+          handleEditTeam(player.color)
+          return
+        }
+      }
+      
+      // Handle edit player mode
+      if (editMode === 'player' && id && id.startsWith('player')) {
+        const player = players.find(p => p.id === id)
+        if (player) {
+          handleEditPlayer(player)
+          return
+        }
+      }
+      
+      // Handle select tool
+      if (activeTool === 'select') {
+        if (e.evt.shiftKey) {
+          // Shift key still works for removing selected items
+          if (selectedItems.includes(id)) {
+            // Remove from selection if already included
+            setSelectedItems(selectedItems.filter(item => item !== id))
+          }
+        } else {
+          // Without shift, just add to selection
+          if (!selectedItems.includes(id)) {
+            // Add to selection if not already included
+            setSelectedItems([...selectedItems, id])
+          }
+        }
+        
+        // Always set the selected ID for visual feedback
         setSelectedId(id)
+        return
+      }
+      
+      // Select the clicked object if not using a drawing tool
+      if (!activeTool || activeTool === 'delete' || activeTool === 'select') {
+        setSelectedId(id)
+        
+        // If in select mode and shift key is pressed, add to selection
+        if (activeTool === 'select') {
+          if (e.evt.shiftKey) {
+            // Add to selection if not already included
+            if (!selectedItems.includes(id)) {
+              setSelectedItems([...selectedItems, id])
+            }
+          } else {
+            // Start new selection
+            setSelectedItems([id])
+          }
+        } else {
+          // Clear multi-selection if not in select mode
+          setSelectedItems([])
+        }
+        
         return
       }
     } else {
@@ -225,13 +316,32 @@ function App() {
       if (!activeTool) {
         // If no tool is active, just deselect
         setSelectedId(null)
+        setSelectedItems([])
+        return
+      }
+      
+      // If in select mode, start selection box
+      if (activeTool === 'select') {
+        setIsSelecting(true)
+        setSelectionBox({
+          x: pos.x,
+          y: pos.y,
+          width: 0,
+          height: 0
+        })
+        
+        // Clear selection unless shift is pressed
+        if (!e.evt.shiftKey) {
+          setSelectedItems([])
+          setSelectedId(null)
+        }
+        
         return
       }
     }
 
     // Handle adding/drawing with active tools
     if (activeTool && (clickedOnEmpty || activeTool !== 'delete')) {
-      const pos = e.target.getStage().getPointerPosition()
       
       if (activeTool === 'player') {
         const nextNumber = getNextPlayerNumber(color)
@@ -303,9 +413,20 @@ function App() {
   }
 
   const handleMouseMove = (e) => {
-    if (!isDrawing) return
-    
     const pos = e.target.getStage().getPointerPosition()
+    
+    // Handle selection box
+    if (isSelecting && activeTool === 'select') {
+      setSelectionBox({
+        ...selectionBox,
+        width: pos.x - selectionBox.x,
+        height: pos.y - selectionBox.y
+      })
+      return
+    }
+    
+    // Handle shape drawing
+    if (!isDrawing) return
     
     if (activeTool === 'line' || activeTool === 'arrow') {
       const updatedLine = {
@@ -331,7 +452,52 @@ function App() {
     }
   }
 
-  const handleMouseUp = () => {
+  const handleMouseUp = (e) => {
+    // Handle finishing the selection box
+    if (isSelecting && activeTool === 'select') {
+      setIsSelecting(false)
+      
+      // Normalize the selection box coordinates
+      const box = normalizeSelectionBox(selectionBox)
+      
+      // Find all items within the selection box
+      const selectedPlayerIds = players.filter(player => 
+        isInSelectionBox(player.x, player.y, box)
+      ).map(player => player.id)
+      
+      const selectedShapeIds = shapes.filter(shape => {
+        if (shape.type === 'line' || shape.type === 'arrow') {
+          // For lines/arrows, check if any point is in the box
+          for (let i = 0; i < shape.points.length; i += 2) {
+            if (isInSelectionBox(shape.points[i], shape.points[i + 1], box)) {
+              return true
+            }
+          }
+          return false
+        } else if (shape.type === 'box' || shape.type === 'circle') {
+          // For box/circle, check if center is in the box
+          const centerX = shape.x + (shape.width / 2)
+          const centerY = shape.y + (shape.height / 2)
+          return isInSelectionBox(centerX, centerY, box)
+        } else if (shape.type === 'football') {
+          // For football, check if center is in the box
+          return isInSelectionBox(shape.x, shape.y, box)
+        }
+        return false
+      }).map(shape => shape.id)
+      
+      // Combine existing and new selections if shift key is pressed
+      const newSelection = e.evt.shiftKey 
+        ? [...new Set([...selectedItems, ...selectedPlayerIds, ...selectedShapeIds])]
+        : [...selectedPlayerIds, ...selectedShapeIds]
+      
+      setSelectedItems(newSelection)
+      
+      // Clear the selection box
+      setSelectionBox(null)
+      return
+    }
+    
     if (!isDrawing) return
     
     setIsDrawing(false)
@@ -342,10 +508,31 @@ function App() {
       setActionTaken(true) // Mark that an action was taken
     }
   }
+  
+  // Helper function to normalize selection box coords (handle negative width/height)
+  const normalizeSelectionBox = (box) => {
+    return {
+      x: box.width >= 0 ? box.x : box.x + box.width,
+      y: box.height >= 0 ? box.y : box.y + box.height,
+      width: Math.abs(box.width),
+      height: Math.abs(box.height)
+    }
+  }
+  
+  // Helper function to check if a point is inside the selection box
+  const isInSelectionBox = (x, y, box) => {
+    return x >= box.x && x <= box.x + box.width && 
+           y >= box.y && y <= box.y + box.height
+  }
 
   const handleDragStart = (e) => {
     const id = e.target.id();
     setSelectedId(id);
+    
+    // If this is part of a multi-selection, ensure it stays in the selection
+    if (activeTool === 'select' && !selectedItems.includes(id)) {
+      setSelectedItems([...selectedItems, id]);
+    }
     
     // If move block is active, find the initial positions of all team players
     if (moveBlockActive && id.startsWith('player')) {
@@ -372,8 +559,12 @@ function App() {
       const draggedPlayer = players.find(p => p.id === id);
       if (!draggedPlayer) return;
       
+      // Get the delta movement
+      const deltaX = e.target.x() - draggedPlayer.x;
+      const deltaY = e.target.y() - draggedPlayer.y;
+      
       if (moveBlockActive) {
-        // Get the current team's color
+        // Handle team block movement logic (existing code)
         const teamColor = isHomeTeam ? homeTeamColor : awayTeamColor;
         
         // Make sure this player belongs to the team we're moving
@@ -394,10 +585,6 @@ function App() {
             setPlayers(updatedPlayers);
             return;
           }
-          
-          // Calculate movement delta
-          const deltaX = e.target.x() - draggedPlayer.x;
-          const deltaY = e.target.y() - draggedPlayer.y;
           
           // Move all players of the same team except goalkeeper
           const updatedPlayers = players.map(player => {
@@ -428,8 +615,56 @@ function App() {
           setPlayers(updatedPlayers);
           setActionTaken(true);
         }
+      } else if (activeTool === 'select' && selectedItems.length > 1 && selectedItems.includes(id)) {
+        // Handle multi-selection movement
+        
+        // Update players
+        const updatedPlayers = players.map(player => {
+          if (selectedItems.includes(player.id)) {
+            return {
+              ...player,
+              x: player.x + deltaX,
+              y: player.y + deltaY
+            };
+          }
+          return player;
+        });
+        
+        // Update shapes
+        const updatedShapes = shapes.map(shape => {
+          if (selectedItems.includes(shape.id)) {
+            if (shape.type === 'line' || shape.type === 'arrow') {
+              // For lines/arrows, move all points
+              const newPoints = [...shape.points];
+              for (let i = 0; i < newPoints.length; i += 2) {
+                newPoints[i] += deltaX;
+                newPoints[i + 1] += deltaY;
+              }
+              return { ...shape, points: newPoints };
+            } else if (shape.type === 'box' || shape.type === 'football') {
+              // For box/football, move x and y
+              return { 
+                ...shape, 
+                x: e.target.x(), 
+                y: e.target.y()
+              };
+            } else if (shape.type === 'circle') {
+              // For circles, we need to adjust the position as it's based on center point
+              return {
+                ...shape,
+                x: e.target.x() - shape.width / 2,
+                y: e.target.y() - shape.height / 2
+              };
+            }
+          }
+          return shape;
+        });
+        
+        setPlayers(updatedPlayers);
+        setShapes(updatedShapes);
+        setActionTaken(true);
       } else {
-        // Normal drag (not block move)
+        // Normal drag for a single player
         const updatedPlayers = players.map(player => {
           if (player.id === id) {
             return {
@@ -441,6 +676,106 @@ function App() {
           return player;
         });
         setPlayers(updatedPlayers);
+        setActionTaken(true);
+      }
+    } else {
+      // Handle dragging shapes (non-players)
+      const draggedShape = shapes.find(s => s.id === id);
+      if (!draggedShape) return;
+      
+      // Get the delta movement
+      let deltaX, deltaY;
+      
+      if (draggedShape.type === 'line' || draggedShape.type === 'arrow') {
+        // For lines, calculate movement based on first point
+        deltaX = e.target.points()[0] - draggedShape.points[0];
+        deltaY = e.target.points()[1] - draggedShape.points[1];
+      } else {
+        // For other shapes
+        deltaX = e.target.x() - draggedShape.x;
+        deltaY = e.target.y() - draggedShape.y;
+      }
+      
+      if (activeTool === 'select' && selectedItems.length > 1 && selectedItems.includes(id)) {
+        // Handle multi-selection movement for shapes
+        
+        // Update players
+        const updatedPlayers = players.map(player => {
+          if (selectedItems.includes(player.id)) {
+            return {
+              ...player,
+              x: player.x + deltaX,
+              y: player.y + deltaY
+            };
+          }
+          return player;
+        });
+        
+        // Update shapes
+        const updatedShapes = shapes.map(shape => {
+          if (selectedItems.includes(shape.id)) {
+            if (shape.type === 'line' || shape.type === 'arrow') {
+              // For lines/arrows, move all points
+              const newPoints = [...shape.points];
+              for (let i = 0; i < newPoints.length; i += 2) {
+                newPoints[i] += deltaX;
+                newPoints[i + 1] += deltaY;
+              }
+              return { ...shape, points: newPoints };
+            } else if (shape.type === 'box' || shape.type === 'football') {
+              // For box/football, move x and y
+              return { 
+                ...shape, 
+                x: e.target.x(), 
+                y: e.target.y()
+              };
+            } else if (shape.type === 'circle') {
+              // For circles, we need to adjust the position as it's based on center point
+              return {
+                ...shape,
+                x: e.target.x() - shape.width / 2,
+                y: e.target.y() - shape.height / 2
+              };
+            }
+          }
+          return shape;
+        });
+        
+        setPlayers(updatedPlayers);
+        setShapes(updatedShapes);
+        setActionTaken(true);
+      } else {
+        // Single shape drag
+        const updatedShapes = shapes.map(shape => {
+          if (shape.id === id) {
+            if (shape.type === 'line' || shape.type === 'arrow') {
+              // For lines/arrows, move all points
+              const newPoints = [...shape.points];
+              for (let i = 0; i < newPoints.length; i += 2) {
+                newPoints[i] += deltaX;
+                newPoints[i + 1] += deltaY;
+              }
+              return { ...shape, points: newPoints };
+            } else if (shape.type === 'box' || shape.type === 'football') {
+              // For box/football, move x and y
+              return { 
+                ...shape, 
+                x: e.target.x(), 
+                y: e.target.y()
+              };
+            } else if (shape.type === 'circle') {
+              // For circles, we need to adjust the position as it's based on center point
+              return {
+                ...shape,
+                x: e.target.x() - shape.width / 2,
+                y: e.target.y() - shape.height / 2
+              };
+            }
+          }
+          return shape;
+        });
+        
+        setShapes(updatedShapes);
         setActionTaken(true);
       }
     }
@@ -1125,6 +1460,7 @@ function App() {
 
   const closeTeamDialog = () => {
     setShowTeamDialog(false);
+    setEditMode(null); // Clear edit mode when closing dialog
   };
 
   const handleTeamDialogInputChange = (e, index, field) => {
@@ -1201,6 +1537,115 @@ function App() {
     closeTeamDialog();
   };
 
+  // Selection tool states
+  const [selectionBox, setSelectionBox] = useState(null)
+  const [selectedItems, setSelectedItems] = useState([])
+  const [isSelecting, setIsSelecting] = useState(false)
+
+  // Handle editing a team (when team edit mode is active)
+  const handleEditTeam = (teamColor) => {
+    // Find all players with this color
+    const teamPlayers = players.filter(player => player.color === teamColor);
+    
+    if (teamPlayers.length === 0) return;
+    
+    // Determine team side based on first player's team property
+    const isLeftSide = teamPlayers[0].team === 'home';
+    
+    // Get the formation by analyzing player positions
+    // For simplicity, we'll just use the default formation
+    const formation = '442';
+    
+    // Extract the player numbers and names
+    const numbers = Array(11).fill('').map((_, i) => (i + 1).toString());
+    const names = Array(11).fill('');
+    
+    teamPlayers.forEach(player => {
+      const index = teamPlayers.findIndex(p => p.id === player.id);
+      if (index >= 0 && index < 11) {
+        // Get the player number and name
+        if (typeof playerNumbers[player.id] === 'object') {
+          numbers[index] = playerNumbers[player.id]?.number || '';
+          names[index] = playerNumbers[player.id]?.name || '';
+        } else {
+          numbers[index] = playerNumbers[player.id]?.toString() || '';
+        }
+      }
+    });
+    
+    // Initialize dialog data
+    setTeamDialogData({
+      numbers,
+      names,
+      formation,
+      side: isLeftSide ? 'left' : 'right',
+      teamColor
+    });
+    
+    // Show the team dialog
+    setShowTeamDialog(true);
+  };
+  
+  // Handle editing a single player
+  const handleEditPlayer = (player) => {
+    if (!player) return;
+    
+    let number = '';
+    let name = '';
+    
+    // Get the player number and name
+    if (typeof playerNumbers[player.id] === 'object') {
+      number = playerNumbers[player.id]?.number || '';
+      name = playerNumbers[player.id]?.name || '';
+    } else {
+      number = playerNumbers[player.id]?.toString() || '';
+    }
+    
+    // Set the player data
+    setEditingPlayerData({
+      id: player.id,
+      number,
+      name
+    });
+    
+    // Show the player edit dialog
+    setShowPlayerEditDialog(true);
+  };
+  
+  // Close the player edit dialog
+  const closePlayerEditDialog = () => {
+    setShowPlayerEditDialog(false);
+    setEditMode(null); // Clear edit mode when closing dialog
+  };
+  
+  // Handle submitting player edit changes
+  const handlePlayerEditSubmit = () => {
+    const { id, number, name } = editingPlayerData;
+    
+    if (id && number) {
+      // Update the player number and name
+      setPlayerNumbers({
+        ...playerNumbers,
+        [id]: {
+          number,
+          name
+        }
+      });
+      
+      setActionTaken(true);
+    }
+    
+    closePlayerEditDialog();
+  };
+  
+  // Handle player edit input changes
+  const handlePlayerEditInputChange = (e, field) => {
+    setEditingPlayerData({
+      ...editingPlayerData,
+      [field]: e.target.value
+    });
+  };
+
   return (
     <div className="tactics-board" tabIndex={0} onKeyDown={handleKeyDown}>
       <h1>Football Tactics Board</h1>
@@ -1210,6 +1655,11 @@ function App() {
           <div className="toolbar-left">
             <div className="tools-row">
               <span className="tools-label">Draw:</span>
+              <button 
+                onClick={openTeamDialog}
+              >
+                Team
+              </button>
               <button 
                 className={activeTool === 'player' ? 'active' : ''} 
                 onClick={() => handleToolToggle('player')}
@@ -1246,11 +1696,6 @@ function App() {
               >
                 Circle
               </button>
-              <button 
-                onClick={openTeamDialog}
-              >
-                Team
-              </button>
             </div>
             
             <div className="tools-row">
@@ -1261,8 +1706,23 @@ function App() {
               >
                 Delete
               </button>
-              <button onClick={() => {}}>
+              <button 
+                className={activeTool === 'select' ? 'active' : ''}
+                onClick={() => handleToolToggle('select')}
+              >
                 Select
+              </button>
+              <button 
+                className={editMode === 'team' ? 'active' : ''}
+                onClick={() => handleEditModeToggle('team')}
+              >
+                Team
+              </button>
+              <button 
+                className={editMode === 'player' ? 'active' : ''}
+                onClick={() => handleEditModeToggle('player')}
+              >
+                Player
               </button>
               <button onClick={handleClear}>
                 Clear
@@ -1589,7 +2049,10 @@ function App() {
                       stroke={shape.color}
                       strokeWidth={3}
                       onClick={() => !activeTool && setSelectedId(shape.id)}
-                      opacity={selectedId === shape.id ? 0.7 : 1}
+                      opacity={selectedId === shape.id || selectedItems.includes(shape.id) ? 0.7 : 1}
+                      draggable={true}
+                      onDragStart={handleDragStart}
+                      onDragEnd={handleDragEnd}
                     />
                   )
                 } else if (shape.type === 'arrow') {
@@ -1603,7 +2066,10 @@ function App() {
                       stroke={shape.color}
                       strokeWidth={3}
                       onClick={() => !activeTool && setSelectedId(shape.id)}
-                      opacity={selectedId === shape.id ? 0.7 : 1}
+                      opacity={selectedId === shape.id || selectedItems.includes(shape.id) ? 0.7 : 1}
+                      draggable={true}
+                      onDragStart={handleDragStart}
+                      onDragEnd={handleDragEnd}
                     />
                   )
                 } else if (shape.type === 'box') {
@@ -1619,7 +2085,10 @@ function App() {
                       strokeWidth={3}
                       fill="transparent"
                       onClick={() => !activeTool && setSelectedId(shape.id)}
-                      opacity={selectedId === shape.id ? 0.7 : 1}
+                      opacity={selectedId === shape.id || selectedItems.includes(shape.id) ? 0.7 : 1}
+                      draggable={true}
+                      onDragStart={handleDragStart}
+                      onDragEnd={handleDragEnd}
                     />
                   )
                 } else if (shape.type === 'circle') {
@@ -1635,7 +2104,17 @@ function App() {
                       strokeWidth={3}
                       fill="transparent"
                       onClick={() => !activeTool && setSelectedId(shape.id)}
-                      opacity={selectedId === shape.id ? 0.7 : 1}
+                      opacity={selectedId === shape.id || selectedItems.includes(shape.id) ? 0.7 : 1}
+                      draggable={true}
+                      onDragStart={handleDragStart}
+                      onDragEnd={handleDragEnd}
+                      dragBoundFunc={(pos) => {
+                        // Store position relative to center rather than top-left
+                        return {
+                          x: pos.x,
+                          y: pos.y
+                        };
+                      }}
                     />
                   )
                 } else if (shape.type === 'football') {
@@ -1651,7 +2130,7 @@ function App() {
                       strokeWidth={1}
                       onClick={() => !activeTool && setSelectedId(shape.id)}
                       opacity={selectedId === shape.id ? 0.7 : 1}
-                      draggable={!activeTool}
+                      draggable={true}
                       onDragStart={handleDragStart}
                       onDragEnd={(e) => {
                         const id = e.target.id();
@@ -1730,6 +2209,24 @@ function App() {
                 return null
               })()}
               
+              {(() => {
+                if (selectionBox) {
+                  return (
+                    <Rect
+                      x={selectionBox.x}
+                      y={selectionBox.y}
+                      width={selectionBox.width}
+                      height={selectionBox.height}
+                      fill="rgba(0, 150, 255, 0.1)"
+                      stroke="rgba(0, 150, 255, 0.8)"
+                      strokeWidth={1}
+                      dash={[5, 5]}
+                    />
+                  )
+                }
+                return null
+              })()}
+              
               {/* Players */}
               {players.map(player => (
                 <Group
@@ -1737,11 +2234,11 @@ function App() {
                   id={player.id}
                   x={player.x}
                   y={player.y}
-                  draggable={!activeTool}
+                  draggable={true}
                   onDragStart={handleDragStart}
                   onDragEnd={handleDragEnd}
                   onClick={() => !activeTool && setSelectedId(player.id)}
-                  opacity={selectedId === player.id ? 0.7 : 1}
+                  opacity={selectedId === player.id || selectedItems.includes(player.id) ? 0.7 : 1}
                 >
                   <Circle
                     id={player.id}
@@ -2027,6 +2524,46 @@ function App() {
                 <button type="button" onClick={() => setShowNumberEditor(false)}>Cancel</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Player Edit Dialog */}
+      {showPlayerEditDialog && (
+        <div className="modal-overlay">
+          <div className="player-edit-dialog">
+            <div className="player-edit-header">
+              <h2>Edit Player</h2>
+              <button className="close-button" onClick={closePlayerEditDialog}>×</button>
+            </div>
+            
+            <div className="player-edit-body">
+              <div className="player-edit-form">
+                <div className="form-group">
+                  <label>Number:</label>
+                  <input 
+                    type="text" 
+                    value={editingPlayerData.number} 
+                    onChange={(e) => handlePlayerEditInputChange(e, 'number')} 
+                    placeholder="Player number"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Name:</label>
+                  <input 
+                    type="text" 
+                    value={editingPlayerData.name} 
+                    onChange={(e) => handlePlayerEditInputChange(e, 'name')} 
+                    placeholder="Player name"
+                  />
+                </div>
+              </div>
+            </div>
+            
+            <div className="player-edit-footer">
+              <button className="cancel-button" onClick={closePlayerEditDialog}>Cancel</button>
+              <button className="confirm-button" onClick={handlePlayerEditSubmit}>Confirm</button>
+            </div>
           </div>
         </div>
       )}
