@@ -5,7 +5,12 @@ import './App.css'
 import { useAuth } from './context/AuthContext'
 import Auth from './components/Auth'
 import UserProfile from './components/UserProfile'
-import { saveTacticsBoard, getUserTacticsBoards, deleteTacticsBoard } from './services/firebase'
+import { 
+  saveTacticsBoard, 
+  getUserTacticsBoards, 
+  deleteTacticsBoard,
+  onTacticsBoardsChange 
+} from './services/firebase'
 
 function App() {
   const [activeTool, setActiveTool] = useState(null) // null, player, line, arrow, box, circle, delete, football, cone
@@ -79,6 +84,8 @@ function App() {
   const [selectedSaveIndex, setSelectedSaveIndex] = useState(-1)
   const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
   
   // Auth related states
   const [showAuthModal, setShowAuthModal] = useState(false)
@@ -1595,35 +1602,43 @@ function App() {
     }
   };
 
-  // Load saved boards from Firebase if user is logged in, otherwise use localStorage
+  // Set up real-time listener for saved boards
   useEffect(() => {
-    const loadSavedBoards = async () => {
+    if (!loading) {
       if (currentUser) {
-        try {
-          // Get user's saved boards from Firebase
-          const userBoards = await getUserTacticsBoards(currentUser.uid)
-          setSavedBoards(userBoards)
-        } catch (error) {
-          console.error('Error loading boards from Firebase:', error)
-        }
+        // Subscribe to real-time updates from Firestore
+        const unsubscribe = onTacticsBoardsChange(currentUser.uid, (boards) => {
+          setSavedBoards(boards);
+        });
+        
+        // Initial load of saved boards
+        setIsLoading(true);
+        getUserTacticsBoards(currentUser.uid)
+          .then(boards => {
+            setSavedBoards(boards);
+          })
+          .catch(error => {
+            console.error('Error loading initial boards:', error);
+          })
+          .finally(() => {
+            setIsLoading(false);
+          });
+        
+        return () => unsubscribe(); // Clean up listener on unmount
       } else {
         // Fall back to localStorage if not logged in
-        const savedData = localStorage.getItem('footballTacticsBoards')
+        const savedData = localStorage.getItem('footballTacticsBoards');
         if (savedData) {
           try {
-            const parsedData = JSON.parse(savedData)
-            setSavedBoards(parsedData)
+            const parsedData = JSON.parse(savedData);
+            setSavedBoards(parsedData);
           } catch (e) {
-            console.error('Error loading saved boards from localStorage:', e)
+            console.error('Error loading saved boards from localStorage:', e);
           }
         }
       }
     }
-    
-    if (!loading) {
-      loadSavedBoards()
-    }
-  }, [currentUser, loading])
+  }, [currentUser, loading]);
 
   // Save functionality
   const handleSaveClick = () => {
@@ -1668,6 +1683,8 @@ function App() {
       return
     }
 
+    setIsSaving(true);
+
     const boardData = {
       name: currentSaveName.trim(),
       date: new Date().toISOString(),
@@ -1683,10 +1700,7 @@ function App() {
       if (currentUser) {
         // Save to Firebase
         await saveTacticsBoard(currentUser.uid, boardData)
-        
-        // Refresh the saved boards list from server
-        const userBoards = await getUserTacticsBoards(currentUser.uid)
-        setSavedBoards(userBoards)
+        // No need to manually refresh since we have the real-time listener
       } else {
         // Fall back to localStorage if somehow we got here without being logged in
         let newSavedBoards
@@ -1710,6 +1724,8 @@ function App() {
     } catch (error) {
       console.error('Error saving board:', error)
       alert('Failed to save your board. Please try again.')
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -1717,25 +1733,34 @@ function App() {
   const handleLoad = () => {
     if (selectedSaveIndex === -1) return
 
-    const boardData = savedBoards[selectedSaveIndex]
-    
-    // Load all the saved data
-    setShapes(boardData.shapes || [])
-    setPlayers(boardData.players || [])
-    setPlayerNumbers(boardData.playerNumbers || {})
-    setHomeTeamColor(boardData.homeTeamColor || null)
-    setAwayTeamColor(boardData.awayTeamColor || null)
-    setVerticalOrientation(boardData.verticalOrientation || false)
-    
-    // Find and set the default ball ID if it exists
-    const defaultBall = boardData.shapes.find(shape => shape.isDefault === true)
-    if (defaultBall) {
-      setDefaultBallId(defaultBall.id)
+    setIsLoading(true);
+
+    try {
+      const boardData = savedBoards[selectedSaveIndex]
+      
+      // Load all the saved data
+      setShapes(boardData.shapes || [])
+      setPlayers(boardData.players || [])
+      setPlayerNumbers(boardData.playerNumbers || {})
+      setHomeTeamColor(boardData.homeTeamColor || null)
+      setAwayTeamColor(boardData.awayTeamColor || null)
+      setVerticalOrientation(boardData.verticalOrientation || false)
+      
+      // Find and set the default ball ID if it exists
+      const defaultBall = boardData.shapes.find(shape => shape.isDefault === true)
+      if (defaultBall) {
+        setDefaultBallId(defaultBall.id)
+      }
+      
+      // Return to board view
+      setViewMode('board')
+      setActionTaken(true)
+    } catch (error) {
+      console.error('Error loading board:', error)
+      alert('Failed to load your board. Please try again.')
+    } finally {
+      setIsLoading(false)
     }
-    
-    // Return to board view
-    setViewMode('board')
-    setActionTaken(true)
   }
 
   // Select a saved board
@@ -1755,14 +1780,13 @@ function App() {
       return
     }
 
+    setIsLoading(true);
+
     try {
       if (currentUser) {
         // Delete from Firebase
         await deleteTacticsBoard(currentUser.uid, savedBoards[selectedSaveIndex].name)
-        
-        // Refresh the saved boards list from server
-        const userBoards = await getUserTacticsBoards(currentUser.uid)
-        setSavedBoards(userBoards)
+        // No need to manually refresh since we have the real-time listener
       } else {
         // Fall back to localStorage if somehow we got here without being logged in
         const newSavedBoards = [...savedBoards]
@@ -1780,6 +1804,8 @@ function App() {
     } catch (error) {
       console.error('Error deleting board:', error)
       alert('Failed to delete your board. Please try again.')
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -2866,22 +2892,23 @@ function App() {
                   onChange={(e) => setCurrentSaveName(e.target.value)}
                   placeholder="Enter a name for this save"
                   className="save-name-input"
+                  disabled={isSaving}
                 />
                 <button 
                   onClick={handleSave}
-                  disabled={!currentSaveName.trim()}
-                  className={!currentSaveName.trim() ? 'disabled' : ''}
+                  disabled={!currentSaveName.trim() || isSaving}
+                  className={!currentSaveName.trim() || isSaving ? 'disabled' : ''}
                 >
-                  {selectedSaveIndex !== -1 ? 'Update' : 'Save New'}
+                  {isSaving ? 'Saving...' : selectedSaveIndex !== -1 ? 'Update' : 'Save New'}
                 </button>
                 <button 
                   onClick={handleDeleteSave}
-                  disabled={selectedSaveIndex === -1}
-                  className={selectedSaveIndex === -1 ? 'disabled' : ''}
+                  disabled={selectedSaveIndex === -1 || isLoading}
+                  className={selectedSaveIndex === -1 || isLoading ? 'disabled' : ''}
                 >
-                  Delete
+                  {isLoading ? 'Deleting...' : 'Delete'}
                 </button>
-                <button onClick={handleCancelSaveLoad}>Cancel</button>
+                <button onClick={handleCancelSaveLoad} disabled={isSaving || isLoading}>Cancel</button>
               </div>
               
               {showOverwriteConfirm && (
@@ -2937,17 +2964,20 @@ function App() {
                 />
                 <button 
                   onClick={handleLoad}
-                  disabled={selectedSaveIndex === -1}
-                  className={selectedSaveIndex === -1 ? 'disabled' : ''}
+                  disabled={selectedSaveIndex === -1 || isLoading}
+                  className={selectedSaveIndex === -1 || isLoading ? 'disabled' : ''}
                 >
-                  Load
+                  {isLoading ? 'Loading...' : 'Load'}
                 </button>
-                <button onClick={handleCancelSaveLoad}>Cancel</button>
+                <button onClick={handleCancelSaveLoad} disabled={isLoading}>Cancel</button>
               </div>
               
               <div className="saved-boards-list">
                 <h3>Available Boards</h3>
-                {savedBoards.length === 0 ? (
+                {isLoading && (
+                  <p className="loading-message">Loading your saved boards...</p>
+                )}
+                {!isLoading && savedBoards.length === 0 ? (
                   <p className="no-saves-message">No saved boards available to load.</p>
                 ) : (
                   <div className="board-items">
