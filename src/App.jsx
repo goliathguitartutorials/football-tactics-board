@@ -168,18 +168,24 @@ function App() {
         if (shouldBeMobileView) {
           setIsMobileMenuOpen(false);
           
-          // Force vertical orientation in mobile view
+          // Always force vertical orientation in mobile view
           if (!verticalOrientation) {
             setVerticalOrientation(true);
           }
         } else {
-          // When switching back to desktop, revert to horizontal orientation
+          // When switching back to desktop from mobile, allow reverting to horizontal orientation
+          // This allows users to return to landscape when expanding browser from narrow width
           if (verticalOrientation) {
             // Don't call toggleOrientation directly to avoid a loop
             // Just set the state and let the other effects handle the transformation
             setVerticalOrientation(false);
           }
         }
+      }
+      
+      // Always enforce vertical orientation on mobile devices, even if window dimensions change
+      if (shouldBeMobileView && !verticalOrientation) {
+        setVerticalOrientation(true);
       }
     }
 
@@ -1103,6 +1109,7 @@ function App() {
   const toggleOrientation = () => {
     // Don't allow changing orientation in mobile view
     if (isMobileView) {
+      console.log('Orientation changes are disabled in mobile view');
       return;
     }
     
@@ -1488,15 +1495,21 @@ function App() {
     
     // If vertical orientation, handle rotation
     if (isVertical) {
-      positions = positions.map(pos => {
-        if (isHome) {
-          // Home team plays bottom to top in vertical
-          return {x: pos.y, y: 1 - pos.x};
-        } else {
-          // Away team plays top to bottom in vertical
-          return {x: pos.y, y: pos.x};
-        }
-      });
+      if (isHome) {
+        // Home team plays bottom to top in vertical orientation
+        // Right players appear on right side (bottom of screen)
+        positions = positions.map(pos => ({
+          x: pos.y,
+          y: 1 - pos.x
+        }));
+      } else {
+        // Away team plays top to bottom in vertical orientation
+        // Right players should appear on right side (top of screen)
+        positions = positions.map(pos => ({
+          x: pos.y,
+          y: pos.x
+        }));
+      }
     }
     
     return positions;
