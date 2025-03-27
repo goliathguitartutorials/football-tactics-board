@@ -53,3 +53,20 @@ Tested and working on modern browsers (Chrome, Firefox, Edge, Safari).
 ## License
 
 MIT
+
+
+User info
+
+To Pull the Latest Version from GitHub
+To overwrite your local changes with the version on GitHub:
+
+Ensure your GitHub repository is linked to Cursor.
+
+Open the terminal or use the Git integration in Cursor.
+
+Run the following commands:
+
+git fetch origin
+git reset --hard origin/main
+
+Replace main with your branch name if it's different.
