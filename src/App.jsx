@@ -14,6 +14,7 @@ function App() {
   const [showNumberEditor, setShowNumberEditor] = useState(false)
   const [editingPlayer, setEditingPlayer] = useState(null)
   const [newPlayerNumber, setNewPlayerNumber] = useState('')
+  const [newPlayerName, setNewPlayerName] = useState('')
   const [showConsole, setShowConsole] = useState(false)
   const [consoleInput, setConsoleInput] = useState('')
   const [consoleHistory, setConsoleHistory] = useState([])
@@ -32,6 +33,16 @@ function App() {
   const [moveBlockActive, setMoveBlockActive] = useState(false)
   const [movingTeam, setMovingTeam] = useState(null) // 'home' or 'away'
   const [defaultBallId, setDefaultBallId] = useState(null) // Store the ID of the default ball
+  
+  // New team dialog states
+  const [showTeamDialog, setShowTeamDialog] = useState(false)
+  const [teamDialogData, setTeamDialogData] = useState({
+    numbers: Array(11).fill('').map((_, i) => (i + 1).toString()),
+    names: Array(11).fill(''),
+    formation: '442',
+    side: 'left',
+    teamColor: '#FF0000'
+  })
   
   // Save/Load functionality
   const [viewMode, setViewMode] = useState('board') // 'board', 'save', 'load'
@@ -629,7 +640,16 @@ function App() {
       const player = players.find(p => p.id === selectedId)
       if (player) {
         setEditingPlayer(player)
-        setNewPlayerNumber(playerNumbers[player.id] || '')
+        
+        // Handle both old and new format for player numbers
+        if (typeof playerNumbers[player.id] === 'object') {
+          setNewPlayerNumber(playerNumbers[player.id]?.number || '')
+          setNewPlayerName(playerNumbers[player.id]?.name || '')
+        } else {
+          setNewPlayerNumber(playerNumbers[player.id]?.toString() || '')
+          setNewPlayerName('')
+        }
+        
         setShowNumberEditor(true)
       }
     } else {
@@ -643,13 +663,32 @@ function App() {
     setNewPlayerNumber(value)
   }
 
+  const handleNameChange = (e) => {
+    setNewPlayerName(e.target.value)
+  }
+
   const handleNumberSubmit = (e) => {
     e.preventDefault()
     if (editingPlayer && newPlayerNumber) {
-      setPlayerNumbers({
-        ...playerNumbers,
-        [editingPlayer.id]: parseInt(newPlayerNumber, 10)
-      })
+      // Handle both old and new format
+      if (typeof playerNumbers[editingPlayer.id] === 'object') {
+        setPlayerNumbers({
+          ...playerNumbers,
+          [editingPlayer.id]: {
+            ...playerNumbers[editingPlayer.id],
+            number: newPlayerNumber,
+            name: newPlayerName
+          }
+        })
+      } else {
+        setPlayerNumbers({
+          ...playerNumbers,
+          [editingPlayer.id]: {
+            number: newPlayerNumber,
+            name: newPlayerName
+          }
+        })
+      }
       setActionTaken(true) // Mark that an action was taken
     }
     setShowNumberEditor(false)
@@ -1044,10 +1083,123 @@ function App() {
 
   // Cancel the save/load process
   const handleCancelSaveLoad = () => {
-    setViewMode('board')
-    setShowOverwriteConfirm(false)
-    setShowDeleteConfirm(false)
+    setViewMode('board');
+    setCurrentSaveName('');
+    setSelectedSaveIndex(-1);
+    setShowOverwriteConfirm(false);
+    setShowDeleteConfirm(false);
   }
+
+  // Helper function to get position abbreviations based on formation and player index
+  const getPositionAbbreviation = (formation, index) => {
+    // Index 0 is always GK, handled separately in the UI
+    switch(formation) {
+      case '442':
+        const positions442 = ['GK', 'RB', 'RCB', 'LCB', 'LB', 'RM', 'RCM', 'LCM', 'LM', 'RS', 'LS'];
+        return positions442[index];
+      case '433':
+        const positions433 = ['GK', 'RB', 'RCB', 'LCB', 'LB', 'RDM', 'CDM', 'LDM', 'RW', 'CF', 'LW'];
+        return positions433[index];
+      case '4231':
+        const positions4231 = ['GK', 'RB', 'RCB', 'LCB', 'LB', 'RDM', 'LDM', 'RAM', 'CAM', 'LAM', 'ST'];
+        return positions4231[index];
+      case '532':
+        const positions532 = ['GK', 'RWB', 'RCB', 'CB', 'LCB', 'LWB', 'RCM', 'CM', 'LCM', 'RS', 'LS'];
+        return positions532[index];
+      default:
+        return `P${index}`;
+    }
+  };
+
+  // Team Dialog Handlers
+  const openTeamDialog = () => {
+    setTeamDialogData({
+      numbers: Array(11).fill('').map((_, i) => (i + 1).toString()),
+      names: Array(11).fill(''),
+      formation: '442',
+      side: 'left',
+      teamColor: color
+    });
+    setShowTeamDialog(true);
+  };
+
+  const closeTeamDialog = () => {
+    setShowTeamDialog(false);
+  };
+
+  const handleTeamDialogInputChange = (e, index, field) => {
+    const newData = { ...teamDialogData };
+    newData[field][index] = e.target.value;
+    setTeamDialogData(newData);
+  };
+
+  const handleTeamDialogFormationChange = (formation) => {
+    setTeamDialogData({ ...teamDialogData, formation });
+  };
+
+  const handleTeamDialogSideChange = (side) => {
+    setTeamDialogData({ ...teamDialogData, side });
+  };
+
+  const handleTeamDialogColorChange = (teamColor) => {
+    setTeamDialogData({ ...teamDialogData, teamColor });
+  };
+
+  const handleTeamDialogSubmit = () => {
+    // Validate that all numbers are filled
+    if (teamDialogData.numbers.some(num => !num)) {
+      alert('Please enter numbers for all players');
+      return;
+    }
+
+    // Clear any existing players with the current color
+    const filteredPlayers = players.filter(player => player.color !== teamDialogData.teamColor);
+    
+    // Calculate positions based on orientation and side
+    const isLeftSide = teamDialogData.side === 'left';
+    const positions = getFormationPositions(teamDialogData.formation, isLeftSide, verticalOrientation);
+    
+    // Create new players
+    const newPlayers = positions.map((pos, index) => {
+      const playerId = `player-${filteredPlayers.length + index}-${Date.now() + index}`;
+      return {
+        id: playerId,
+        x: pos.x * stageWidth,
+        y: pos.y * stageHeight,
+        radius: playerRadius,
+        color: teamDialogData.teamColor,
+        type: 'player',
+        team: isLeftSide ? 'home' : 'away', // Tag the player with team
+        isGoalkeeper: index === 0 // First player is always the goalkeeper
+      };
+    });
+
+    // Create player numbers and names
+    const newPlayerNumbers = {};
+    
+    newPlayers.forEach((player, index) => {
+      newPlayerNumbers[player.id] = {
+        number: teamDialogData.numbers[index],
+        name: teamDialogData.names[index]
+      };
+    });
+
+    // Set players and numbers
+    setPlayers([...filteredPlayers, ...newPlayers]);
+    setPlayerNumbers({...playerNumbers, ...newPlayerNumbers});
+    
+    // Save the team color
+    if (isLeftSide) {
+      setHomeTeamColor(teamDialogData.teamColor);
+      setIsHomeTeam(true);
+    } else {
+      setAwayTeamColor(teamDialogData.teamColor);
+      setIsHomeTeam(false);
+    }
+    
+    setActionTaken(true);
+    closeTeamDialog();
+  };
 
   return (
     <div className="tactics-board" tabIndex={0} onKeyDown={handleKeyDown}>
@@ -1093,6 +1245,11 @@ function App() {
                 onClick={() => handleToolToggle('circle')}
               >
                 Circle
+              </button>
+              <button 
+                onClick={openTeamDialog}
+              >
+                Team
               </button>
             </div>
             
@@ -1643,11 +1800,24 @@ function App() {
                   <Text
                     x={-4}
                     y={-6}
-                    text={playerNumbers[player.id]?.toString() || ''}
+                    text={typeof playerNumbers[player.id] === 'object' 
+                      ? playerNumbers[player.id]?.number || '' 
+                      : playerNumbers[player.id]?.toString() || ''}
                     fill="#FFFFFF"
                     fontSize={12}
                     fontStyle="bold"
                   />
+                  {playerNumbers[player.id]?.name && (
+                    <Text
+                      x={-playerRadius}
+                      y={playerRadius + 5}
+                      text={playerNumbers[player.id].name}
+                      fill="#000000"
+                      fontSize={10}
+                      width={playerRadius * 2}
+                      align="center"
+                    />
+                  )}
                 </Group>
               ))}
             </Layer>
@@ -1764,7 +1934,120 @@ function App() {
         ) : null}
       </div>
 
-      {showNumberEditor && (
+      {/* Team Dialog */}
+      {showTeamDialog && (
+        <div className="modal-overlay">
+          <div className="team-dialog">
+            <div className="team-dialog-header">
+              <h2>Create Team</h2>
+              <button className="close-button" onClick={closeTeamDialog}>×</button>
+            </div>
+            
+            <div className="team-dialog-body">
+              <div className="team-options">
+                <div className="formation-options">
+                  <label>Formation:</label>
+                  <div className="formation-buttons">
+                    <button 
+                      className={teamDialogData.formation === '442' ? 'active' : ''} 
+                      onClick={() => handleTeamDialogFormationChange('442')}
+                    >
+                      4-4-2
+                    </button>
+                    <button 
+                      className={teamDialogData.formation === '433' ? 'active' : ''} 
+                      onClick={() => handleTeamDialogFormationChange('433')}
+                    >
+                      4-3-3
+                    </button>
+                    <button 
+                      className={teamDialogData.formation === '4231' ? 'active' : ''} 
+                      onClick={() => handleTeamDialogFormationChange('4231')}
+                    >
+                      4-2-3-1
+                    </button>
+                    <button 
+                      className={teamDialogData.formation === '532' ? 'active' : ''} 
+                      onClick={() => handleTeamDialogFormationChange('532')}
+                    >
+                      5-3-2
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="side-options">
+                  <label>Side:</label>
+                  <div className="side-buttons">
+                    <button 
+                      className={teamDialogData.side === 'left' ? 'active' : ''} 
+                      onClick={() => handleTeamDialogSideChange('left')}
+                    >
+                      Left
+                    </button>
+                    <button 
+                      className={teamDialogData.side === 'right' ? 'active' : ''} 
+                      onClick={() => handleTeamDialogSideChange('right')}
+                    >
+                      Right
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="color-option">
+                  <label>Team Color:</label>
+                  <div className="color-picker">
+                    <div 
+                      className="color-preview" 
+                      style={{ backgroundColor: teamDialogData.teamColor }}
+                    ></div>
+                    <input 
+                      type="color" 
+                      value={teamDialogData.teamColor} 
+                      onChange={(e) => handleTeamDialogColorChange(e.target.value)} 
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              <div className="player-inputs">
+                <div className="player-input-headers">
+                  <div className="player-number-header">Number</div>
+                  <div className="player-name-header">Name</div>
+                </div>
+                
+                {teamDialogData.numbers.map((number, index) => (
+                  <div key={index} className="player-input-row">
+                    <div className="player-position">
+                      {index === 0 ? 'GK' : getPositionAbbreviation(teamDialogData.formation, index)}
+                    </div>
+                    <input 
+                      type="text" 
+                      className="player-number-input" 
+                      value={number} 
+                      onChange={(e) => handleTeamDialogInputChange(e, index, 'numbers')} 
+                      placeholder={`#${index + 1}`}
+                    />
+                    <input 
+                      type="text" 
+                      className="player-name-input" 
+                      value={teamDialogData.names[index]} 
+                      onChange={(e) => handleTeamDialogInputChange(e, index, 'names')} 
+                      placeholder="Player name"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            <div className="team-dialog-footer">
+              <button className="cancel-button" onClick={closeTeamDialog}>Cancel</button>
+              <button className="confirm-button" onClick={handleTeamDialogSubmit}>Confirm</button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {showNumberEditor && editingPlayer && (
         <div className="number-editor-overlay">
           <div className="number-editor">
             <h3>Edit Player Number</h3>
@@ -1773,9 +2056,16 @@ function App() {
                 type="text" 
                 value={newPlayerNumber} 
                 onChange={handleNumberChange}
+                placeholder="Number"
                 pattern="[0-9]*"
                 inputMode="numeric"
                 autoFocus
+              />
+              <input 
+                type="text" 
+                value={newPlayerName} 
+                onChange={handleNameChange}
+                placeholder="Player name"
               />
               <div className="buttons">
                 <button type="submit">Save</button>
