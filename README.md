@@ -57,14 +57,14 @@ MIT
 
 User info
 
-To Pull the Latest Version from GitHub
-To overwrite your local changes with the version on GitHub:
+- To Push changes to your GitHub repository:
 
-Ensure your GitHub repository is linked to Cursor.
+git add .
+git commit -m "Configure for GitHub Pages deployment"
+git push
 
-Open the terminal or use the Git integration in Cursor.
 
-Run the following commands:
+- To overwrite your local changes with the version on GitHub:
 
 git fetch origin
 git reset --hard origin/main

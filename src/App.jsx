@@ -3,7 +3,7 @@ import { Stage, Layer, Rect, Circle, Line, Arrow, Text, Group, Ellipse, Arc } fr
 import './App.css'
 
 function App() {
-  const [activeTool, setActiveTool] = useState(null) // null, player, line, arrow, box, circle, delete
+  const [activeTool, setActiveTool] = useState(null) // null, player, line, arrow, box, circle, delete, football
   const [color, setColor] = useState('#FF0000') // default red
   const [shapes, setShapes] = useState([])
   const [players, setPlayers] = useState([])
@@ -242,7 +242,7 @@ function App() {
       }
       
       if (activeTool === 'football') {
-        const newShape = {
+        const newBall = {
           id: `football-${shapes.length}-${Date.now()}`,
           x: pos.x,
           y: pos.y,
@@ -250,7 +250,7 @@ function App() {
           color: '#FFFFFF',
           type: 'football'
         }
-        setShapes([...shapes, newShape])
+        setShapes([...shapes, newBall])
         setActionTaken(true) // Mark that an action was taken
         return
       }
@@ -1054,172 +1054,193 @@ function App() {
       <h1>Football Tactics Board</h1>
       
       <div className="toolbar">
-        <div className="tools">
-          <button 
-            className={activeTool === 'player' ? 'active' : ''} 
-            onClick={() => handleToolToggle('player')}
-          >
-            Add Player
-          </button>
-          <button 
-            className={activeTool === 'delete' ? 'active' : ''} 
-            onClick={handleDelete}
-          >
-            Delete
-          </button>
-          <button 
-            className={activeTool === 'line' ? 'active' : ''} 
-            onClick={() => handleToolToggle('line')}
-          >
-            Line
-          </button>
-          <button 
-            className={activeTool === 'arrow' ? 'active' : ''} 
-            onClick={() => handleToolToggle('arrow')}
-          >
-            Arrow
-          </button>
-          <button 
-            className={activeTool === 'box' ? 'active' : ''} 
-            onClick={() => handleToolToggle('box')}
-          >
-            Rectangle
-          </button>
-          <button 
-            className={activeTool === 'circle' ? 'active' : ''} 
-            onClick={() => handleToolToggle('circle')}
-          >
-            Circle
-          </button>
-        </div>
-        
-        <div className="colors">
-          <button 
-            className={color === '#FF0000' ? 'active' : ''}
-            onClick={() => handleColorChange('#FF0000')}
-            style={{ backgroundColor: '#FF0000' }}
-          ></button>
-          <button 
-            className={color === '#0000FF' ? 'active' : ''}
-            onClick={() => handleColorChange('#0000FF')}
-            style={{ backgroundColor: '#0000FF' }}
-          ></button>
-          <button 
-            className={color === '#00FF00' ? 'active' : ''}
-            onClick={() => handleColorChange('#00FF00')}
-            style={{ backgroundColor: '#00FF00' }}
-          ></button>
-          <button 
-            className={color === '#FFFF00' ? 'active' : ''}
-            onClick={() => handleColorChange('#FFFF00')}
-            style={{ backgroundColor: '#FFFF00' }}
-          ></button>
-          <button 
-            className={color === '#000000' ? 'active' : ''}
-            onClick={() => handleColorChange('#000000')}
-            style={{ backgroundColor: '#000000' }}
-          ></button>
-        </div>
-
-        <div className="formation-controls">
-          <div className="team-toggle">
-            <span>Team:</span>
-            <button 
-              className={isHomeTeam ? 'active' : ''} 
-              onClick={() => toggleHomeAway('home')}
-              style={{ 
-                borderLeft: homeTeamColor ? `4px solid ${homeTeamColor}` : 'none' 
-              }}
-            >
-              Home
-            </button>
-            <button 
-              className={!isHomeTeam ? 'active' : ''} 
-              onClick={() => toggleHomeAway('away')}
-              style={{ 
-                borderLeft: awayTeamColor ? `4px solid ${awayTeamColor}` : 'none' 
-              }}
-            >
-              Away
-            </button>
-          </div>
-          
-          <button 
-            onClick={assignColorToTeam}
-            style={{ 
-              borderLeft: (isHomeTeam && homeTeamColor) ? `4px solid ${homeTeamColor}` : 
-                        (!isHomeTeam && awayTeamColor) ? `4px solid ${awayTeamColor}` : 'none'
-            }}
-          >
-            Color
-          </button>
-          
-          <div className="formation-dropdown">
-            <button onClick={() => setShowFormationDropdown(!showFormationDropdown)}>
-              Formation
-            </button>
+        <div className="toolbar-content">
+          <div className="toolbar-left">
+            <div className="tools-row">
+              <span className="tools-label">Draw:</span>
+              <button 
+                className={activeTool === 'player' ? 'active' : ''} 
+                onClick={() => handleToolToggle('player')}
+              >
+                Player
+              </button>
+              <button 
+                className={activeTool === 'football' ? 'active' : ''} 
+                onClick={() => handleToolToggle('football')}
+              >
+                Ball
+              </button>
+              <button 
+                className={activeTool === 'line' ? 'active' : ''} 
+                onClick={() => handleToolToggle('line')}
+              >
+                Line
+              </button>
+              <button 
+                className={activeTool === 'arrow' ? 'active' : ''} 
+                onClick={() => handleToolToggle('arrow')}
+              >
+                Arrow
+              </button>
+              <button 
+                className={activeTool === 'box' ? 'active' : ''} 
+                onClick={() => handleToolToggle('box')}
+              >
+                Rectangle
+              </button>
+              <button 
+                className={activeTool === 'circle' ? 'active' : ''} 
+                onClick={() => handleToolToggle('circle')}
+              >
+                Circle
+              </button>
+            </div>
             
-            {showFormationDropdown && (
-              <div className="dropdown-content">
-                <button onClick={() => placePlayersInFormation('442')}>4-4-2</button>
-                <button onClick={() => placePlayersInFormation('433')}>4-3-3</button>
-                <button onClick={() => placePlayersInFormation('4231')}>4-2-3-1</button>
-                <button onClick={() => placePlayersInFormation('532')}>5-3-2</button>
+            <div className="tools-row">
+              <span className="tools-label">Team:</span>
+              <button 
+                className={isHomeTeam ? 'active' : ''} 
+                onClick={() => toggleHomeAway('home')}
+                style={{ 
+                  borderLeft: homeTeamColor ? `4px solid ${homeTeamColor}` : 'none' 
+                }}
+              >
+                Home
+              </button>
+              <button 
+                className={!isHomeTeam ? 'active' : ''} 
+                onClick={() => toggleHomeAway('away')}
+                style={{ 
+                  borderLeft: awayTeamColor ? `4px solid ${awayTeamColor}` : 'none' 
+                }}
+              >
+                Away
+              </button>
+              <div className="formation-dropdown">
+                <button onClick={() => setShowFormationDropdown(!showFormationDropdown)}>
+                  Formation
+                </button>
+                
+                {showFormationDropdown && (
+                  <div className="dropdown-content">
+                    <button onClick={() => placePlayersInFormation('442')}>4-4-2</button>
+                    <button onClick={() => placePlayersInFormation('433')}>4-3-3</button>
+                    <button onClick={() => placePlayersInFormation('4231')}>4-2-3-1</button>
+                    <button onClick={() => placePlayersInFormation('532')}>5-3-2</button>
+                  </div>
+                )}
               </div>
-            )}
+              <button 
+                className={moveBlockActive ? 'active' : ''}
+                onClick={toggleMoveBlock}
+                disabled={isHomeTeam ? !homeTeamColor : !awayTeamColor}
+                style={{ 
+                  opacity: (isHomeTeam && homeTeamColor) || (!isHomeTeam && awayTeamColor) ? '1' : '0.5',
+                  borderLeft: isHomeTeam && homeTeamColor ? `4px solid ${homeTeamColor}` : 
+                            !isHomeTeam && awayTeamColor ? `4px solid ${awayTeamColor}` : 'none'
+                }}
+              >
+                Move
+              </button>
+            </div>
+            
+            <div className="tools-row">
+              <span className="tools-label">Edit:</span>
+              <button 
+                className={activeTool === 'delete' ? 'active' : ''} 
+                onClick={handleDelete}
+              >
+                Delete
+              </button>
+              <button onClick={() => {}}>
+                Select
+              </button>
+              <button onClick={handleClear}>
+                Clear
+              </button>
+              <button 
+                onClick={handleUndo} 
+                disabled={historyIndex <= 0}
+                className={historyIndex <= 0 ? 'disabled' : ''}
+              >
+                Undo
+              </button>
+              <button 
+                onClick={handleRedo} 
+                disabled={historyIndex >= history.length - 1}
+                className={historyIndex >= history.length - 1 ? 'disabled' : ''}
+              >
+                Redo
+              </button>
+              <button 
+                onClick={handleSaveClick}
+                className={viewMode === 'save' ? 'active' : ''}
+              >
+                Save
+              </button>
+              <button 
+                onClick={handleLoadClick}
+                className={viewMode === 'load' ? 'active' : ''}
+              >
+                Load
+              </button>
+            </div>
           </div>
           
-          <div className="team-actions">
-            <button 
-              className={moveBlockActive ? 'active' : ''}
-              onClick={toggleMoveBlock}
-              disabled={isHomeTeam ? !homeTeamColor : !awayTeamColor}
-              style={{ 
-                opacity: (isHomeTeam && homeTeamColor) || (!isHomeTeam && awayTeamColor) ? '1' : '0.5',
-                borderLeft: isHomeTeam && homeTeamColor ? `4px solid ${homeTeamColor}` : 
-                           !isHomeTeam && awayTeamColor ? `4px solid ${awayTeamColor}` : 'none'
-              }}
-            >
-              Move
-            </button>
+          <div className="toolbar-right">
+            <div className="colors-grid">
+              <button 
+                className={color === '#FF0000' ? 'active' : ''}
+                onClick={() => handleColorChange('#FF0000')}
+                style={{ backgroundColor: '#FF0000' }}
+              ></button>
+              <button 
+                className={color === '#0000FF' ? 'active' : ''}
+                onClick={() => handleColorChange('#0000FF')}
+                style={{ backgroundColor: '#0000FF' }}
+              ></button>
+              <button 
+                className={color === '#00FF00' ? 'active' : ''}
+                onClick={() => handleColorChange('#00FF00')}
+                style={{ backgroundColor: '#00FF00' }}
+              ></button>
+              <button 
+                className={color === '#FFFF00' ? 'active' : ''}
+                onClick={() => handleColorChange('#FFFF00')}
+                style={{ backgroundColor: '#FFFF00' }}
+              ></button>
+              <button 
+                className={color === '#000000' ? 'active' : ''}
+                onClick={() => handleColorChange('#000000')}
+                style={{ backgroundColor: '#000000' }}
+              ></button>
+              <button 
+                className={color === '#FFFFFF' ? 'active' : ''}
+                onClick={() => handleColorChange('#FFFFFF')}
+                style={{ backgroundColor: '#FFFFFF', border: '1px solid #333' }}
+              ></button>
+              <button 
+                className={color === '#FFA500' ? 'active' : ''}
+                onClick={() => handleColorChange('#FFA500')}
+                style={{ backgroundColor: '#FFA500' }}
+              ></button>
+              <button 
+                className={color === '#800080' ? 'active' : ''}
+                onClick={() => handleColorChange('#800080')}
+                style={{ backgroundColor: '#800080' }}
+              ></button>
+              <button 
+                title="Custom Color"
+                onClick={() => {
+                  const customColor = prompt('Enter a color hex code (e.g. #FF5733):');
+                  if (customColor) {
+                    handleColorChange(customColor);
+                  }
+                }}
+                style={{ background: 'linear-gradient(135deg, red, orange, yellow, green, blue, indigo, violet)' }}
+              ></button>
+            </div>
           </div>
-        </div>
-
-        <div className="action-buttons">
-          <button onClick={openNumberEditor}>Edit Number</button>
-          <button onClick={handleClear}>Clear</button>
-          <button 
-            onClick={handleUndo} 
-            disabled={historyIndex <= 0}
-            className={historyIndex <= 0 ? 'disabled' : ''}
-          >
-            Undo
-          </button>
-          <button 
-            onClick={handleRedo} 
-            disabled={historyIndex >= history.length - 1}
-            className={historyIndex >= history.length - 1 ? 'disabled' : ''}
-          >
-            Redo
-          </button>
-          <button 
-            onClick={toggleOrientation}
-            className={verticalOrientation ? 'active' : ''}
-          >
-            {verticalOrientation ? 'Horizontal View' : 'Vertical View'}
-          </button>
-          <button 
-            onClick={handleSaveClick}
-            className={viewMode === 'save' ? 'active' : ''}
-          >
-            Save
-          </button>
-          <button 
-            onClick={handleLoadClick}
-            className={viewMode === 'load' ? 'active' : ''}
-          >
-            Load
-          </button>
         </div>
       </div>
       
