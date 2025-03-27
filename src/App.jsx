@@ -3,7 +3,7 @@ import { Stage, Layer, Rect, Circle, Line, Arrow, Text, Group, Ellipse, Arc } fr
 import './App.css'
 
 function App() {
-  const [activeTool, setActiveTool] = useState(null) // null, player, line, arrow, box, circle, delete, football
+  const [activeTool, setActiveTool] = useState(null) // null, player, line, arrow, box, circle, delete, football, cone
   const [color, setColor] = useState('#FF0000') // default red
   const [shapes, setShapes] = useState([])
   const [players, setPlayers] = useState([])
@@ -66,15 +66,15 @@ function App() {
   // FIFA standard pitch ratio is approximately 105:68 (length:width)
   const pitchRatio = 105 / 68
 
-  // Toolbar height estimate (for calculating available space)
-  const toolbarHeight = 180; // Estimate including margins
+  // Sidebar width estimate
+  const sidebarWidth = 240; // 200px + padding
   const headerHeight = 60; // Estimate for the h1 heading
 
   // Determine stage dimensions based on orientation and available space
   const getStageDimensions = () => {
     // Available space calculation
-    const availableWidth = Math.min(windowDimensions.width * 0.95, 1200) - 40; // 40px for padding
-    const availableHeight = windowDimensions.height - toolbarHeight - headerHeight - 40; // 40px for padding
+    const availableWidth = Math.min(windowDimensions.width * 0.95, 1200) - sidebarWidth - 40; // 40px for padding
+    const availableHeight = windowDimensions.height - headerHeight - 40; // 40px for padding
     
     if (verticalOrientation) {
       // In vertical orientation, width is shorter dimension, height is longer
@@ -338,6 +338,21 @@ function App() {
         
         return
       }
+      
+      // Check if we're in move block mode
+      if (moveBlockActive && !isDrawing) {
+        // Find all players of the moving team
+        const playersToSelect = players.filter(p => {
+          return p.color === (movingTeam === 'home' ? homeTeamColor : awayTeamColor)
+        })
+        
+        // Select them all
+        setSelectedItems(playersToSelect.map(p => p.id))
+        
+        // Start dragging
+        setIsDrawing(true)
+        return
+      }
     }
 
     // Handle adding/drawing with active tools
@@ -372,6 +387,21 @@ function App() {
           type: 'football'
         }
         setShapes([...shapes, newBall])
+        setActionTaken(true) // Mark that an action was taken
+        return
+      }
+      
+      if (activeTool === 'cone') {
+        // Add a cone shape
+        const newCone = {
+          id: `cone-${shapes.length}-${Date.now()}`,
+          x: pos.x,
+          y: pos.y,
+          color: '#FFFF00', // Yellow default for cone
+          strokeColor: '#000000', // Black outline
+          type: 'cone'
+        }
+        setShapes([...shapes, newCone])
         setActionTaken(true) // Mark that an action was taken
         return
       }
@@ -1650,113 +1680,9 @@ function App() {
     <div className="tactics-board" tabIndex={0} onKeyDown={handleKeyDown}>
       <h1>Football Tactics Board</h1>
       
-      <div className="toolbar">
-        <div className="toolbar-content">
-          <div className="toolbar-left">
-            <div className="tools-row">
-              <span className="tools-label">Draw:</span>
-              <button 
-                onClick={openTeamDialog}
-              >
-                Team
-              </button>
-              <button 
-                className={activeTool === 'player' ? 'active' : ''} 
-                onClick={() => handleToolToggle('player')}
-              >
-                Player
-              </button>
-              <button 
-                className={activeTool === 'football' ? 'active' : ''} 
-                onClick={() => handleToolToggle('football')}
-              >
-                Ball
-              </button>
-              <button 
-                className={activeTool === 'line' ? 'active' : ''} 
-                onClick={() => handleToolToggle('line')}
-              >
-                Line
-              </button>
-              <button 
-                className={activeTool === 'arrow' ? 'active' : ''} 
-                onClick={() => handleToolToggle('arrow')}
-              >
-                Arrow
-              </button>
-              <button 
-                className={activeTool === 'box' ? 'active' : ''} 
-                onClick={() => handleToolToggle('box')}
-              >
-                Rectangle
-              </button>
-              <button 
-                className={activeTool === 'circle' ? 'active' : ''} 
-                onClick={() => handleToolToggle('circle')}
-              >
-                Circle
-              </button>
-            </div>
-            
-            <div className="tools-row">
-              <span className="tools-label">Edit:</span>
-              <button 
-                className={activeTool === 'delete' ? 'active' : ''} 
-                onClick={handleDelete}
-              >
-                Delete
-              </button>
-              <button 
-                className={activeTool === 'select' ? 'active' : ''}
-                onClick={() => handleToolToggle('select')}
-              >
-                Select
-              </button>
-              <button 
-                className={editMode === 'team' ? 'active' : ''}
-                onClick={() => handleEditModeToggle('team')}
-              >
-                Team
-              </button>
-              <button 
-                className={editMode === 'player' ? 'active' : ''}
-                onClick={() => handleEditModeToggle('player')}
-              >
-                Player
-              </button>
-              <button onClick={handleClear}>
-                Clear
-              </button>
-              <button 
-                onClick={handleUndo} 
-                disabled={historyIndex <= 0}
-                className={historyIndex <= 0 ? 'disabled' : ''}
-              >
-                Undo
-              </button>
-              <button 
-                onClick={handleRedo} 
-                disabled={historyIndex >= history.length - 1}
-                className={historyIndex >= history.length - 1 ? 'disabled' : ''}
-              >
-                Redo
-              </button>
-              <button 
-                onClick={handleSaveClick}
-                className={viewMode === 'save' ? 'active' : ''}
-              >
-                Save
-              </button>
-              <button 
-                onClick={handleLoadClick}
-                className={viewMode === 'load' ? 'active' : ''}
-              >
-                Load
-              </button>
-            </div>
-          </div>
-          
-          <div className="toolbar-right">
+      <div className="main-container">
+        <div className="sidebar-toolbar">
+          <div className="toolbar-section color-section">
             <div className="current-color-display">
               <div className="color-circle" style={{ backgroundColor: color }}></div>
             </div>
@@ -1813,577 +1739,736 @@ function App() {
               </button>
             </div>
           </div>
-        </div>
-      </div>
-      
-      <div className="canvas-container" style={{ width: stageWidth, height: stageHeight }}>
-        {viewMode === 'board' ? (
-          <Stage
-            ref={stageRef}
-            width={stageWidth}
-            height={stageHeight}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-          >
-            <Layer>
-              {/* Football pitch background */}
-              <Rect
-                x={0}
-                y={0}
-                width={stageWidth}
-                height={stageHeight}
-                fill="#4CAF50"
-                stroke="#FFFFFF"
-                strokeWidth={2}
-              />
-              
-              {verticalOrientation ? (
-                // Vertical pitch elements
-                <>
-                  {/* Center circle */}
-                  <Circle
-                    x={stageWidth / 2}
-                    y={stageHeight / 2}
-                    radius={stageWidth / 5}
-                    stroke="#FFFFFF"
-                    strokeWidth={2}
-                  />
-                  
-                  {/* Center line (horizontal for vertical field) */}
-                  <Line
-                    points={[0, stageHeight / 2, stageWidth, stageHeight / 2]}
-                    stroke="#FFFFFF"
-                    strokeWidth={2}
-                  />
-                  
-                  {/* Top goal area (six-yard box) */}
-                  <Rect
-                    x={(stageWidth - stageWidth * 0.275) / 2}
-                    y={0}
-                    width={stageWidth * 0.275}
-                    height={stageHeight * 0.055}
-                    stroke="#FFFFFF"
-                    strokeWidth={2}
-                  />
-                  
-                  {/* Bottom goal area (six-yard box) */}
-                  <Rect
-                    x={(stageWidth - stageWidth * 0.275) / 2}
-                    y={stageHeight - stageHeight * 0.055}
-                    width={stageWidth * 0.275}
-                    height={stageHeight * 0.055}
-                    stroke="#FFFFFF"
-                    strokeWidth={2}
-                  />
-                  
-                  {/* Top penalty area */}
-                  <Rect
-                    x={(stageWidth - stageWidth * 0.6) / 2}
-                    y={0}
-                    width={stageWidth * 0.6}
-                    height={stageHeight * 0.16}
-                    stroke="#FFFFFF"
-                    strokeWidth={2}
-                  />
-                  
-                  {/* Bottom penalty area */}
-                  <Rect
-                    x={(stageWidth - stageWidth * 0.6) / 2}
-                    y={stageHeight - stageHeight * 0.16}
-                    width={stageWidth * 0.6}
-                    height={stageHeight * 0.16}
-                    stroke="#FFFFFF"
-                    strokeWidth={2}
-                  />
-                  
-                  {/* Top penalty spot */}
-                  <Circle
-                    x={stageWidth / 2}
-                    y={stageHeight * 0.11}
-                    radius={stageWidth / 150}
-                    fill="#FFFFFF"
-                  />
-                  
-                  {/* Bottom penalty spot */}
-                  <Circle
-                    x={stageWidth / 2}
-                    y={stageHeight - stageHeight * 0.11}
-                    radius={stageWidth / 150}
-                    fill="#FFFFFF"
-                  />
-                  
-                  {/* Top penalty area 'D' arc */}
-                  <Arc
-                    x={stageWidth / 2}
-                    y={stageHeight * 0.905}
-                    innerRadius={stageWidth * 0.2}
-                    outerRadius={stageWidth * 0.2}
-                    angle={120}
-                    rotation={210}
-                    stroke="#FFFFFF"
-                    strokeWidth={2}
-                  />
-                  
-                  {/* Bottom penalty area 'D' arc */}
-                  <Arc
-                    x={stageWidth / 2}
-                    y={stageHeight - stageHeight * 0.905}
-                    innerRadius={stageWidth * 0.2}
-                    outerRadius={stageWidth * 0.2}
-                    angle={120}
-                    rotation={30}
-                    stroke="#FFFFFF"
-                    strokeWidth={2}
-                  />
-                </>
-              ) : (
-                // Horizontal pitch elements
-                <>
-                  {/* Center circle */}
-                  <Circle
-                    x={stageWidth / 2}
-                    y={stageHeight / 2}
-                    radius={stageHeight / 5}
-                    stroke="#FFFFFF"
-                    strokeWidth={2}
-                  />
-                  
-                  {/* Center line */}
-                  <Line
-                    points={[stageWidth / 2, 0, stageWidth / 2, stageHeight]}
-                    stroke="#FFFFFF"
-                    strokeWidth={2}
-                  />
-                  
-                  {/* Left goal area (six-yard box) */}
-                  <Rect
-                    x={0}
-                    y={(stageHeight - stageHeight * 0.275) / 2}
-                    width={stageWidth * 0.055}
-                    height={stageHeight * 0.275}
-                    stroke="#FFFFFF"
-                    strokeWidth={2}
-                  />
-                  
-                  {/* Right goal area (six-yard box) */}
-                  <Rect
-                    x={stageWidth - stageWidth * 0.055}
-                    y={(stageHeight - stageHeight * 0.275) / 2}
-                    width={stageWidth * 0.055}
-                    height={stageHeight * 0.275}
-                    stroke="#FFFFFF"
-                    strokeWidth={2}
-                  />
-                  
-                  {/* Left penalty area */}
-                  <Rect
-                    x={0}
-                    y={(stageHeight - stageHeight * 0.6) / 2}
-                    width={stageWidth * 0.16}
-                    height={stageHeight * 0.6}
-                    stroke="#FFFFFF"
-                    strokeWidth={2}
-                  />
-                  
-                  {/* Right penalty area */}
-                  <Rect
-                    x={stageWidth - stageWidth * 0.16}
-                    y={(stageHeight - stageHeight * 0.6) / 2}
-                    width={stageWidth * 0.16}
-                    height={stageHeight * 0.6}
-                    stroke="#FFFFFF"
-                    strokeWidth={2}
-                  />
-                  
-                  {/* Left penalty spot */}
-                  <Circle
-                    x={stageWidth * 0.11}
-                    y={stageHeight / 2}
-                    radius={stageHeight / 150}
-                    fill="#FFFFFF"
-                  />
-                  
-                  {/* Right penalty spot */}
-                  <Circle
-                    x={stageWidth - stageWidth * 0.11}
-                    y={stageHeight / 2}
-                    radius={stageHeight / 150}
-                    fill="#FFFFFF"
-                  />
-                  
-                  {/* Left penalty area 'D' arc */}
-                  <Arc
-                    x={stageWidth * 0.095}
-                    y={stageHeight / 2}
-                    innerRadius={stageHeight * 0.2}
-                    outerRadius={stageHeight * 0.2}
-                    angle={120}
-                    rotation={300}
-                    stroke="#FFFFFF"
-                    strokeWidth={2}
-                  />
-                  
-                  {/* Right penalty area 'D' arc */}
-                  <Arc
-                    x={stageWidth - stageWidth * 0.095}
-                    y={stageHeight / 2}
-                    innerRadius={stageHeight * 0.2}
-                    outerRadius={stageHeight * 0.2}
-                    angle={120}
-                    rotation={120}
-                    stroke="#FFFFFF"
-                    strokeWidth={2}
-                  />
-                </>
-              )}
-              
-              {/* Drawing shapes */}
-              {shapes.map(shape => {
-                if (shape.type === 'line') {
-                  return (
-                    <Line
-                      key={shape.id}
-                      id={shape.id}
-                      points={shape.points}
-                      stroke={shape.color}
-                      strokeWidth={3}
-                      onClick={() => !activeTool && setSelectedId(shape.id)}
-                      opacity={selectedId === shape.id || selectedItems.includes(shape.id) ? 0.7 : 1}
-                      draggable={true}
-                      onDragStart={handleDragStart}
-                      onDragEnd={handleDragEnd}
-                    />
-                  )
-                } else if (shape.type === 'arrow') {
-                  return (
-                    <Arrow
-                      key={shape.id}
-                      id={shape.id}
-                      points={shape.points}
-                      pointerLength={10}
-                      pointerWidth={10}
-                      stroke={shape.color}
-                      strokeWidth={3}
-                      onClick={() => !activeTool && setSelectedId(shape.id)}
-                      opacity={selectedId === shape.id || selectedItems.includes(shape.id) ? 0.7 : 1}
-                      draggable={true}
-                      onDragStart={handleDragStart}
-                      onDragEnd={handleDragEnd}
-                    />
-                  )
-                } else if (shape.type === 'box') {
-                  return (
-                    <Rect
-                      key={shape.id}
-                      id={shape.id}
-                      x={shape.x}
-                      y={shape.y}
-                      width={shape.width}
-                      height={shape.height}
-                      stroke={shape.color}
-                      strokeWidth={3}
-                      fill="transparent"
-                      onClick={() => !activeTool && setSelectedId(shape.id)}
-                      opacity={selectedId === shape.id || selectedItems.includes(shape.id) ? 0.7 : 1}
-                      draggable={true}
-                      onDragStart={handleDragStart}
-                      onDragEnd={handleDragEnd}
-                    />
-                  )
-                } else if (shape.type === 'circle') {
-                  return (
-                    <Ellipse
-                      key={shape.id}
-                      id={shape.id}
-                      x={shape.x + shape.width / 2}
-                      y={shape.y + shape.height / 2}
-                      radiusX={Math.abs(shape.width / 2)}
-                      radiusY={Math.abs(shape.height / 2)}
-                      stroke={shape.color}
-                      strokeWidth={3}
-                      fill="transparent"
-                      onClick={() => !activeTool && setSelectedId(shape.id)}
-                      opacity={selectedId === shape.id || selectedItems.includes(shape.id) ? 0.7 : 1}
-                      draggable={true}
-                      onDragStart={handleDragStart}
-                      onDragEnd={handleDragEnd}
-                      dragBoundFunc={(pos) => {
-                        // Store position relative to center rather than top-left
-                        return {
-                          x: pos.x,
-                          y: pos.y
-                        };
-                      }}
-                    />
-                  )
-                } else if (shape.type === 'football') {
-                  return (
-                    <Circle
-                      key={shape.id}
-                      id={shape.id}
-                      x={shape.x}
-                      y={shape.y}
-                      radius={shape.radius}
-                      fill="#FFFFFF"
-                      stroke="#000000"
-                      strokeWidth={1}
-                      onClick={() => !activeTool && setSelectedId(shape.id)}
-                      opacity={selectedId === shape.id ? 0.7 : 1}
-                      draggable={true}
-                      onDragStart={handleDragStart}
-                      onDragEnd={(e) => {
-                        const id = e.target.id();
-                        const updatedShapes = shapes.map(s => {
-                          if (s.id === id) {
-                            return {
-                              ...s,
-                              x: e.target.x(),
-                              y: e.target.y()
-                            };
-                          }
-                          return s;
-                        });
-                        setShapes(updatedShapes);
-                        setActionTaken(true);
-                      }}
-                    />
-                  )
-                }
-                return null
-              })}
-              
-              {/* Currently drawing shape */}
-              {newShape && (() => {
-                if (newShape.type === 'line') {
-                  return (
-                    <Line
-                      points={newShape.points}
-                      stroke={newShape.color}
-                      strokeWidth={3}
-                      dashEnabled={true}
-                      dash={[5, 5]}
-                    />
-                  )
-                } else if (newShape.type === 'arrow') {
-                  return (
-                    <Arrow
-                      points={newShape.points}
-                      pointerLength={10}
-                      pointerWidth={10}
-                      stroke={newShape.color}
-                      strokeWidth={3}
-                      dashEnabled={true}
-                      dash={[5, 5]}
-                    />
-                  )
-                } else if (newShape.type === 'box') {
-                  return (
-                    <Rect
-                      x={newShape.x}
-                      y={newShape.y}
-                      width={newShape.width}
-                      height={newShape.height}
-                      stroke={newShape.color}
-                      strokeWidth={3}
-                      dashEnabled={true}
-                      dash={[5, 5]}
-                      fill="transparent"
-                    />
-                  )
-                } else if (newShape.type === 'circle') {
-                  return (
-                    <Ellipse
-                      x={newShape.x + newShape.width / 2}
-                      y={newShape.y + newShape.height / 2}
-                      radiusX={Math.abs(newShape.width / 2)}
-                      radiusY={Math.abs(newShape.height / 2)}
-                      stroke={newShape.color}
-                      strokeWidth={3}
-                      dashEnabled={true}
-                      dash={[5, 5]}
-                      fill="transparent"
-                    />
-                  )
-                }
-                return null
-              })()}
-              
-              {(() => {
-                if (selectionBox) {
-                  return (
-                    <Rect
-                      x={selectionBox.x}
-                      y={selectionBox.y}
-                      width={selectionBox.width}
-                      height={selectionBox.height}
-                      fill="rgba(0, 150, 255, 0.1)"
-                      stroke="rgba(0, 150, 255, 0.8)"
-                      strokeWidth={1}
-                      dash={[5, 5]}
-                    />
-                  )
-                }
-                return null
-              })()}
-              
-              {/* Players */}
-              {players.map(player => (
-                <Group
-                  key={player.id}
-                  id={player.id}
-                  x={player.x}
-                  y={player.y}
-                  draggable={true}
-                  onDragStart={handleDragStart}
-                  onDragEnd={handleDragEnd}
-                  onClick={() => !activeTool && setSelectedId(player.id)}
-                  opacity={selectedId === player.id || selectedItems.includes(player.id) ? 0.7 : 1}
-                >
-                  <Circle
-                    id={player.id}
-                    x={0}
-                    y={0}
-                    radius={playerRadius}
-                    fill={player.color}
-                    stroke="#000000"
-                    strokeWidth={2}
-                  />
-                  <Text
-                    x={-4}
-                    y={-6}
-                    text={typeof playerNumbers[player.id] === 'object' 
-                      ? playerNumbers[player.id]?.number || '' 
-                      : playerNumbers[player.id]?.toString() || ''}
-                    fill="#FFFFFF"
-                    fontSize={12}
-                    fontStyle="bold"
-                  />
-                  {playerNumbers[player.id]?.name && (
-                    <Text
-                      x={-playerRadius}
-                      y={playerRadius + 5}
-                      text={playerNumbers[player.id].name}
-                      fill="#000000"
-                      fontSize={10}
-                      width={playerRadius * 2}
-                      align="center"
-                    />
-                  )}
-                </Group>
-              ))}
-            </Layer>
-          </Stage>
-        ) : viewMode === 'save' ? (
-          <div className="save-load-container">
-            <h2>Save Tactics Board</h2>
-            <div className="save-input-row">
-              <input
-                type="text"
-                value={currentSaveName}
-                onChange={(e) => setCurrentSaveName(e.target.value)}
-                placeholder="Enter a name for this save"
-                className="save-name-input"
-              />
+          
+          <div className="toolbar-section">
+            <h3>Draw</h3>
+            <div className="button-row">
               <button 
-                onClick={handleSave}
-                disabled={!currentSaveName.trim()}
-                className={!currentSaveName.trim() ? 'disabled' : ''}
+                className={activeTool === 'line' ? 'active' : ''} 
+                onClick={() => handleToolToggle('line')}
               >
-                {selectedSaveIndex !== -1 ? 'Update' : 'Save New'}
+                Line
               </button>
               <button 
-                onClick={handleDeleteSave}
-                disabled={selectedSaveIndex === -1}
-                className={selectedSaveIndex === -1 ? 'disabled' : ''}
+                className={activeTool === 'arrow' ? 'active' : ''} 
+                onClick={() => handleToolToggle('arrow')}
+              >
+                Arrow
+              </button>
+            </div>
+            <div className="button-row">
+              <button 
+                className={activeTool === 'box' ? 'active' : ''} 
+                onClick={() => handleToolToggle('box')}
+              >
+                Rectangle
+              </button>
+              <button 
+                className={activeTool === 'circle' ? 'active' : ''} 
+                onClick={() => handleToolToggle('circle')}
+              >
+                Circle
+              </button>
+            </div>
+            <div className="button-row">
+              <button 
+                className={`single-button ${activeTool === 'cone' ? 'active' : ''}`} 
+                onClick={() => handleToolToggle('cone')}
+              >
+                Cone
+              </button>
+            </div>
+          </div>
+          
+          <div className="toolbar-section">
+            <h3>Tools</h3>
+            <div className="category-label">Team</div>
+            <div className="button-row">
+              <button onClick={openTeamDialog}>
+                Add
+              </button>
+              <button 
+                className={editMode === 'team' ? 'active' : ''}
+                onClick={() => handleEditModeToggle('team')}
+              >
+                Edit
+              </button>
+            </div>
+            
+            <div className="category-label">Player</div>
+            <div className="button-row">
+              <button 
+                className={activeTool === 'player' ? 'active' : ''} 
+                onClick={() => handleToolToggle('player')}
+              >
+                Add
+              </button>
+              <button 
+                className={editMode === 'player' ? 'active' : ''}
+                onClick={() => handleEditModeToggle('player')}
+              >
+                Edit
+              </button>
+            </div>
+            
+            <div className="button-row">
+              <button 
+                className={activeTool === 'football' ? 'active' : ''} 
+                onClick={() => handleToolToggle('football')}
+              >
+                Ball
+              </button>
+              <button 
+                className={activeTool === 'select' ? 'active' : ''}
+                onClick={() => handleToolToggle('select')}
+              >
+                Select
+              </button>
+            </div>
+          </div>
+          
+          <div className="toolbar-section">
+            <h3>Edit</h3>
+            <div className="button-row">
+              <button 
+                className={activeTool === 'delete' ? 'active' : ''} 
+                onClick={handleDelete}
               >
                 Delete
               </button>
-              <button onClick={handleCancelSaveLoad}>Cancel</button>
+              <button onClick={handleClear}>
+                Clear
+              </button>
             </div>
-            
-            {showOverwriteConfirm && (
-              <div className="overwrite-confirm">
-                <p>Are you sure you want to overwrite "{savedBoards[selectedSaveIndex].name}"?</p>
-                <div className="confirm-buttons">
-                  <button onClick={handleSave}>Yes, Overwrite</button>
-                  <button onClick={() => setShowOverwriteConfirm(false)}>Cancel</button>
-                </div>
-              </div>
-            )}
-            
-            {showDeleteConfirm && (
-              <div className="overwrite-confirm delete-confirm">
-                <p>Are you sure you want to delete "{savedBoards[selectedSaveIndex].name}"?</p>
-                <div className="confirm-buttons">
-                  <button onClick={handleDeleteSave}>Yes, Delete</button>
-                  <button onClick={() => setShowDeleteConfirm(false)}>Cancel</button>
-                </div>
-              </div>
-            )}
-            
-            <div className="saved-boards-list">
-              <h3>Existing Saves</h3>
-              {savedBoards.length === 0 ? (
-                <p className="no-saves-message">No saved boards yet. Create your first one!</p>
-              ) : (
-                <div className="board-items">
-                  {savedBoards.map((board, index) => (
-                    <div 
-                      key={index}
-                      className={`board-item ${selectedSaveIndex === index ? 'selected' : ''}`}
-                      onClick={() => handleSelectSave(index)}
-                    >
-                      <div className="board-name">{board.name}</div>
-                      <div className="board-date">{new Date(board.date).toLocaleString()}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
+            <div className="button-row">
+              <button 
+                onClick={handleUndo} 
+                disabled={historyIndex <= 0}
+                className={historyIndex <= 0 ? 'disabled' : ''}
+              >
+                Undo
+              </button>
+              <button 
+                onClick={handleRedo} 
+                disabled={historyIndex >= history.length - 1}
+                className={historyIndex >= history.length - 1 ? 'disabled' : ''}
+              >
+                Redo
+              </button>
             </div>
           </div>
-        ) : viewMode === 'load' ? (
-          <div className="save-load-container">
-            <h2>Load Tactics Board</h2>
-            <div className="save-input-row">
-              <input
-                type="text"
-                value={currentSaveName}
-                placeholder="Select a save to load"
-                readOnly
-                className="save-name-input"
-              />
+          
+          <div className="toolbar-section">
+            <h3>Options</h3>
+            <div className="button-row">
               <button 
-                onClick={handleLoad}
-                disabled={selectedSaveIndex === -1}
-                className={selectedSaveIndex === -1 ? 'disabled' : ''}
+                onClick={handleSaveClick}
+                className={viewMode === 'save' ? 'active' : ''}
+              >
+                Save
+              </button>
+              <button 
+                onClick={handleLoadClick}
+                className={viewMode === 'load' ? 'active' : ''}
               >
                 Load
               </button>
-              <button onClick={handleCancelSaveLoad}>Cancel</button>
-            </div>
-            
-            <div className="saved-boards-list">
-              <h3>Available Boards</h3>
-              {savedBoards.length === 0 ? (
-                <p className="no-saves-message">No saved boards available to load.</p>
-              ) : (
-                <div className="board-items">
-                  {savedBoards.map((board, index) => (
-                    <div 
-                      key={index}
-                      className={`board-item ${selectedSaveIndex === index ? 'selected' : ''}`}
-                      onClick={() => handleSelectSave(index)}
-                    >
-                      <div className="board-name">{board.name}</div>
-                      <div className="board-date">{new Date(board.date).toLocaleString()}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
-        ) : null}
+        </div>
+        
+        <div className="canvas-container" style={{ width: stageWidth, height: stageHeight }}>
+          {viewMode === 'board' ? (
+            <Stage
+              ref={stageRef}
+              width={stageWidth}
+              height={stageHeight}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+            >
+              <Layer>
+                {/* Football pitch background */}
+                <Rect
+                  x={0}
+                  y={0}
+                  width={stageWidth}
+                  height={stageHeight}
+                  fill="#4CAF50"
+                  stroke="#FFFFFF"
+                  strokeWidth={2}
+                />
+                
+                {verticalOrientation ? (
+                  // Vertical pitch elements
+                  <>
+                    {/* Center circle */}
+                    <Circle
+                      x={stageWidth / 2}
+                      y={stageHeight / 2}
+                      radius={stageWidth / 5}
+                      stroke="#FFFFFF"
+                      strokeWidth={2}
+                    />
+                    
+                    {/* Center line (horizontal for vertical field) */}
+                    <Line
+                      points={[0, stageHeight / 2, stageWidth, stageHeight / 2]}
+                      stroke="#FFFFFF"
+                      strokeWidth={2}
+                    />
+                    
+                    {/* Top goal area (six-yard box) */}
+                    <Rect
+                      x={(stageWidth - stageWidth * 0.275) / 2}
+                      y={0}
+                      width={stageWidth * 0.275}
+                      height={stageHeight * 0.055}
+                      stroke="#FFFFFF"
+                      strokeWidth={2}
+                    />
+                    
+                    {/* Bottom goal area (six-yard box) */}
+                    <Rect
+                      x={(stageWidth - stageWidth * 0.275) / 2}
+                      y={stageHeight - stageHeight * 0.055}
+                      width={stageWidth * 0.275}
+                      height={stageHeight * 0.055}
+                      stroke="#FFFFFF"
+                      strokeWidth={2}
+                    />
+                    
+                    {/* Top penalty area */}
+                    <Rect
+                      x={(stageWidth - stageWidth * 0.6) / 2}
+                      y={0}
+                      width={stageWidth * 0.6}
+                      height={stageHeight * 0.16}
+                      stroke="#FFFFFF"
+                      strokeWidth={2}
+                    />
+                    
+                    {/* Bottom penalty area */}
+                    <Rect
+                      x={(stageWidth - stageWidth * 0.6) / 2}
+                      y={stageHeight - stageHeight * 0.16}
+                      width={stageWidth * 0.6}
+                      height={stageHeight * 0.16}
+                      stroke="#FFFFFF"
+                      strokeWidth={2}
+                    />
+                    
+                    {/* Top penalty spot */}
+                    <Circle
+                      x={stageWidth / 2}
+                      y={stageHeight * 0.11}
+                      radius={stageWidth / 150}
+                      fill="#FFFFFF"
+                    />
+                    
+                    {/* Bottom penalty spot */}
+                    <Circle
+                      x={stageWidth / 2}
+                      y={stageHeight - stageHeight * 0.11}
+                      radius={stageWidth / 150}
+                      fill="#FFFFFF"
+                    />
+                    
+                    {/* Top penalty area 'D' arc */}
+                    <Arc
+                      x={stageWidth / 2}
+                      y={stageHeight * 0.905}
+                      innerRadius={stageWidth * 0.2}
+                      outerRadius={stageWidth * 0.2}
+                      angle={120}
+                      rotation={210}
+                      stroke="#FFFFFF"
+                      strokeWidth={2}
+                    />
+                    
+                    {/* Bottom penalty area 'D' arc */}
+                    <Arc
+                      x={stageWidth / 2}
+                      y={stageHeight - stageHeight * 0.905}
+                      innerRadius={stageWidth * 0.2}
+                      outerRadius={stageWidth * 0.2}
+                      angle={120}
+                      rotation={30}
+                      stroke="#FFFFFF"
+                      strokeWidth={2}
+                    />
+                  </>
+                ) : (
+                  // Horizontal pitch elements
+                  <>
+                    {/* Center circle */}
+                    <Circle
+                      x={stageWidth / 2}
+                      y={stageHeight / 2}
+                      radius={stageHeight / 5}
+                      stroke="#FFFFFF"
+                      strokeWidth={2}
+                    />
+                    
+                    {/* Center line */}
+                    <Line
+                      points={[stageWidth / 2, 0, stageWidth / 2, stageHeight]}
+                      stroke="#FFFFFF"
+                      strokeWidth={2}
+                    />
+                    
+                    {/* Left goal area (six-yard box) */}
+                    <Rect
+                      x={0}
+                      y={(stageHeight - stageHeight * 0.275) / 2}
+                      width={stageWidth * 0.055}
+                      height={stageHeight * 0.275}
+                      stroke="#FFFFFF"
+                      strokeWidth={2}
+                    />
+                    
+                    {/* Right goal area (six-yard box) */}
+                    <Rect
+                      x={stageWidth - stageWidth * 0.055}
+                      y={(stageHeight - stageHeight * 0.275) / 2}
+                      width={stageWidth * 0.055}
+                      height={stageHeight * 0.275}
+                      stroke="#FFFFFF"
+                      strokeWidth={2}
+                    />
+                    
+                    {/* Left penalty area */}
+                    <Rect
+                      x={0}
+                      y={(stageHeight - stageHeight * 0.6) / 2}
+                      width={stageWidth * 0.16}
+                      height={stageHeight * 0.6}
+                      stroke="#FFFFFF"
+                      strokeWidth={2}
+                    />
+                    
+                    {/* Right penalty area */}
+                    <Rect
+                      x={stageWidth - stageWidth * 0.16}
+                      y={(stageHeight - stageHeight * 0.6) / 2}
+                      width={stageWidth * 0.16}
+                      height={stageHeight * 0.6}
+                      stroke="#FFFFFF"
+                      strokeWidth={2}
+                    />
+                    
+                    {/* Left penalty spot */}
+                    <Circle
+                      x={stageWidth * 0.11}
+                      y={stageHeight / 2}
+                      radius={stageHeight / 150}
+                      fill="#FFFFFF"
+                    />
+                    
+                    {/* Right penalty spot */}
+                    <Circle
+                      x={stageWidth - stageWidth * 0.11}
+                      y={stageHeight / 2}
+                      radius={stageHeight / 150}
+                      fill="#FFFFFF"
+                    />
+                    
+                    {/* Left penalty area 'D' arc */}
+                    <Arc
+                      x={stageWidth * 0.095}
+                      y={stageHeight / 2}
+                      innerRadius={stageHeight * 0.2}
+                      outerRadius={stageHeight * 0.2}
+                      angle={120}
+                      rotation={300}
+                      stroke="#FFFFFF"
+                      strokeWidth={2}
+                    />
+                    
+                    {/* Right penalty area 'D' arc */}
+                    <Arc
+                      x={stageWidth - stageWidth * 0.095}
+                      y={stageHeight / 2}
+                      innerRadius={stageHeight * 0.2}
+                      outerRadius={stageHeight * 0.2}
+                      angle={120}
+                      rotation={120}
+                      stroke="#FFFFFF"
+                      strokeWidth={2}
+                    />
+                  </>
+                )}
+                
+                {/* Drawing shapes */}
+                {shapes.map(shape => {
+                  if (shape.type === 'line') {
+                    return (
+                      <Line
+                        key={shape.id}
+                        id={shape.id}
+                        points={shape.points}
+                        stroke={shape.color}
+                        strokeWidth={3}
+                        onClick={() => !activeTool && setSelectedId(shape.id)}
+                        opacity={selectedId === shape.id || selectedItems.includes(shape.id) ? 0.7 : 1}
+                        draggable={true}
+                        onDragStart={handleDragStart}
+                        onDragEnd={handleDragEnd}
+                      />
+                    )
+                  } else if (shape.type === 'arrow') {
+                    return (
+                      <Arrow
+                        key={shape.id}
+                        id={shape.id}
+                        points={shape.points}
+                        pointerLength={10}
+                        pointerWidth={10}
+                        stroke={shape.color}
+                        strokeWidth={3}
+                        onClick={() => !activeTool && setSelectedId(shape.id)}
+                        opacity={selectedId === shape.id || selectedItems.includes(shape.id) ? 0.7 : 1}
+                        draggable={true}
+                        onDragStart={handleDragStart}
+                        onDragEnd={handleDragEnd}
+                      />
+                    )
+                  } else if (shape.type === 'box') {
+                    return (
+                      <Rect
+                        key={shape.id}
+                        id={shape.id}
+                        x={shape.x}
+                        y={shape.y}
+                        width={shape.width}
+                        height={shape.height}
+                        stroke={shape.color}
+                        strokeWidth={3}
+                        fill="transparent"
+                        onClick={() => !activeTool && setSelectedId(shape.id)}
+                        opacity={selectedId === shape.id || selectedItems.includes(shape.id) ? 0.7 : 1}
+                        draggable={true}
+                        onDragStart={handleDragStart}
+                        onDragEnd={handleDragEnd}
+                      />
+                    )
+                  } else if (shape.type === 'circle') {
+                    return (
+                      <Ellipse
+                        key={shape.id}
+                        id={shape.id}
+                        x={shape.x + shape.width / 2}
+                        y={shape.y + shape.height / 2}
+                        radiusX={Math.abs(shape.width / 2)}
+                        radiusY={Math.abs(shape.height / 2)}
+                        stroke={shape.color}
+                        strokeWidth={3}
+                        fill="transparent"
+                        onClick={() => !activeTool && setSelectedId(shape.id)}
+                        opacity={selectedId === shape.id || selectedItems.includes(shape.id) ? 0.7 : 1}
+                        draggable={true}
+                        onDragStart={handleDragStart}
+                        onDragEnd={handleDragEnd}
+                        dragBoundFunc={(pos) => {
+                          // Store position relative to center rather than top-left
+                          return {
+                            x: pos.x,
+                            y: pos.y
+                          };
+                        }}
+                      />
+                    )
+                  } else if (shape.type === 'football') {
+                    return (
+                      <Circle
+                        key={shape.id}
+                        id={shape.id}
+                        x={shape.x}
+                        y={shape.y}
+                        radius={shape.radius}
+                        fill="#FFFFFF"
+                        stroke="#000000"
+                        strokeWidth={1}
+                        onClick={() => !activeTool && setSelectedId(shape.id)}
+                        opacity={selectedId === shape.id ? 0.7 : 1}
+                        draggable={true}
+                        onDragStart={handleDragStart}
+                        onDragEnd={(e) => {
+                          const id = e.target.id();
+                          const updatedShapes = shapes.map(s => {
+                            if (s.id === id) {
+                              return {
+                                ...s,
+                                x: e.target.x(),
+                                y: e.target.y()
+                              };
+                            }
+                            return s;
+                          });
+                          setShapes(updatedShapes);
+                          setActionTaken(true);
+                        }}
+                      />
+                    )
+                  } else if (shape.type === 'cone') {
+                    return (
+                      <Group
+                        key={shape.id}
+                        id={shape.id}
+                        x={shape.x}
+                        y={shape.y}
+                        onClick={() => !activeTool && setSelectedId(shape.id)}
+                        opacity={selectedId === shape.id || selectedItems.includes(shape.id) ? 0.7 : 1}
+                        draggable={true}
+                        onDragStart={handleDragStart}
+                        onDragEnd={handleDragEnd}
+                      >
+                        {/* Cone shape (triangle) */}
+                        <Line
+                          points={[0, -15, 10, 10, -10, 10]}
+                          closed={true}
+                          fill={shape.color}
+                          stroke={shape.strokeColor}
+                          strokeWidth={2}
+                        />
+                      </Group>
+                    )
+                  }
+                  return null
+                })}
+                
+                {/* Currently drawing shape */}
+                {newShape && (() => {
+                  if (newShape.type === 'line') {
+                    return (
+                      <Line
+                        points={newShape.points}
+                        stroke={newShape.color}
+                        strokeWidth={3}
+                        dashEnabled={true}
+                        dash={[5, 5]}
+                      />
+                    )
+                  } else if (newShape.type === 'arrow') {
+                    return (
+                      <Arrow
+                        points={newShape.points}
+                        pointerLength={10}
+                        pointerWidth={10}
+                        stroke={newShape.color}
+                        strokeWidth={3}
+                        dashEnabled={true}
+                        dash={[5, 5]}
+                      />
+                    )
+                  } else if (newShape.type === 'box') {
+                    return (
+                      <Rect
+                        x={newShape.x}
+                        y={newShape.y}
+                        width={newShape.width}
+                        height={newShape.height}
+                        stroke={newShape.color}
+                        strokeWidth={3}
+                        dashEnabled={true}
+                        dash={[5, 5]}
+                        fill="transparent"
+                      />
+                    )
+                  } else if (newShape.type === 'circle') {
+                    return (
+                      <Ellipse
+                        x={newShape.x + newShape.width / 2}
+                        y={newShape.y + newShape.height / 2}
+                        radiusX={Math.abs(newShape.width / 2)}
+                        radiusY={Math.abs(newShape.height / 2)}
+                        stroke={newShape.color}
+                        strokeWidth={3}
+                        dashEnabled={true}
+                        dash={[5, 5]}
+                        fill="transparent"
+                      />
+                    )
+                  }
+                  return null
+                })()}
+                
+                {(() => {
+                  if (selectionBox) {
+                    return (
+                      <Rect
+                        x={selectionBox.x}
+                        y={selectionBox.y}
+                        width={selectionBox.width}
+                        height={selectionBox.height}
+                        fill="rgba(0, 150, 255, 0.1)"
+                        stroke="rgba(0, 150, 255, 0.8)"
+                        strokeWidth={1}
+                        dash={[5, 5]}
+                      />
+                    )
+                  }
+                  return null
+                })()}
+                
+                {/* Players */}
+                {players.map(player => (
+                  <Group
+                    key={player.id}
+                    id={player.id}
+                    x={player.x}
+                    y={player.y}
+                    draggable={true}
+                    onDragStart={handleDragStart}
+                    onDragEnd={handleDragEnd}
+                    onClick={() => !activeTool && setSelectedId(player.id)}
+                    opacity={selectedId === player.id || selectedItems.includes(player.id) ? 0.7 : 1}
+                  >
+                    <Circle
+                      id={player.id}
+                      x={0}
+                      y={0}
+                      radius={playerRadius}
+                      fill={player.color}
+                      stroke="#000000"
+                      strokeWidth={2}
+                    />
+                    <Text
+                      x={-4}
+                      y={-6}
+                      text={typeof playerNumbers[player.id] === 'object' 
+                        ? playerNumbers[player.id]?.number || '' 
+                        : playerNumbers[player.id]?.toString() || ''}
+                      fill="#FFFFFF"
+                      fontSize={12}
+                      fontStyle="bold"
+                    />
+                    {playerNumbers[player.id]?.name && (
+                      <Text
+                        x={-playerRadius}
+                        y={playerRadius + 5}
+                        text={playerNumbers[player.id].name}
+                        fill="#000000"
+                        fontSize={10}
+                        width={playerRadius * 2}
+                        align="center"
+                      />
+                    )}
+                  </Group>
+                ))}
+              </Layer>
+            </Stage>
+          ) : viewMode === 'save' ? (
+            <div className="save-load-container">
+              <h2>Save Tactics Board</h2>
+              <div className="save-input-row">
+                <input
+                  type="text"
+                  value={currentSaveName}
+                  onChange={(e) => setCurrentSaveName(e.target.value)}
+                  placeholder="Enter a name for this save"
+                  className="save-name-input"
+                />
+                <button 
+                  onClick={handleSave}
+                  disabled={!currentSaveName.trim()}
+                  className={!currentSaveName.trim() ? 'disabled' : ''}
+                >
+                  {selectedSaveIndex !== -1 ? 'Update' : 'Save New'}
+                </button>
+                <button 
+                  onClick={handleDeleteSave}
+                  disabled={selectedSaveIndex === -1}
+                  className={selectedSaveIndex === -1 ? 'disabled' : ''}
+                >
+                  Delete
+                </button>
+                <button onClick={handleCancelSaveLoad}>Cancel</button>
+              </div>
+              
+              {showOverwriteConfirm && (
+                <div className="overwrite-confirm">
+                  <p>Are you sure you want to overwrite "{savedBoards[selectedSaveIndex].name}"?</p>
+                  <div className="confirm-buttons">
+                    <button onClick={handleSave}>Yes, Overwrite</button>
+                    <button onClick={() => setShowOverwriteConfirm(false)}>Cancel</button>
+                  </div>
+                </div>
+              )}
+              
+              {showDeleteConfirm && (
+                <div className="overwrite-confirm delete-confirm">
+                  <p>Are you sure you want to delete "{savedBoards[selectedSaveIndex].name}"?</p>
+                  <div className="confirm-buttons">
+                    <button onClick={handleDeleteSave}>Yes, Delete</button>
+                    <button onClick={() => setShowDeleteConfirm(false)}>Cancel</button>
+                  </div>
+                </div>
+              )}
+              
+              <div className="saved-boards-list">
+                <h3>Existing Saves</h3>
+                {savedBoards.length === 0 ? (
+                  <p className="no-saves-message">No saved boards yet. Create your first one!</p>
+                ) : (
+                  <div className="board-items">
+                    {savedBoards.map((board, index) => (
+                      <div 
+                        key={index}
+                        className={`board-item ${selectedSaveIndex === index ? 'selected' : ''}`}
+                        onClick={() => handleSelectSave(index)}
+                      >
+                        <div className="board-name">{board.name}</div>
+                        <div className="board-date">{new Date(board.date).toLocaleString()}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : viewMode === 'load' ? (
+            <div className="save-load-container">
+              <h2>Load Tactics Board</h2>
+              <div className="save-input-row">
+                <input
+                  type="text"
+                  value={currentSaveName}
+                  placeholder="Select a save to load"
+                  readOnly
+                  className="save-name-input"
+                />
+                <button 
+                  onClick={handleLoad}
+                  disabled={selectedSaveIndex === -1}
+                  className={selectedSaveIndex === -1 ? 'disabled' : ''}
+                >
+                  Load
+                </button>
+                <button onClick={handleCancelSaveLoad}>Cancel</button>
+              </div>
+              
+              <div className="saved-boards-list">
+                <h3>Available Boards</h3>
+                {savedBoards.length === 0 ? (
+                  <p className="no-saves-message">No saved boards available to load.</p>
+                ) : (
+                  <div className="board-items">
+                    {savedBoards.map((board, index) => (
+                      <div 
+                        key={index}
+                        className={`board-item ${selectedSaveIndex === index ? 'selected' : ''}`}
+                        onClick={() => handleSelectSave(index)}
+                      >
+                        <div className="board-name">{board.name}</div>
+                        <div className="board-date">{new Date(board.date).toLocaleString()}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : null}
+        </div>
       </div>
 
       {/* Team Dialog */}
