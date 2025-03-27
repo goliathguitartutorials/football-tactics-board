@@ -37,6 +37,10 @@ function App() {
   const [movingTeam, setMovingTeam] = useState(null) // 'home' or 'away'
   const [defaultBallId, setDefaultBallId] = useState(null) // Store the ID of the default ball
   
+  // Mobile/responsive view state
+  const [isMobileView, setIsMobileView] = useState(false)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  
   // New team dialog states
   const [showTeamDialog, setShowTeamDialog] = useState(false)
   const [teamDialogData, setTeamDialogData] = useState({
@@ -69,27 +73,33 @@ function App() {
   // FIFA standard pitch ratio is approximately 105:68 (length:width)
   const pitchRatio = 105 / 68
 
-  // Sidebar width estimate
-  const sidebarWidth = 240; // 200px + padding
+  // Sidebar width estimate - 0 when in mobile view
+  const sidebarWidth = isMobileView ? 0 : 240; // 200px + padding
   const headerHeight = 60; // Estimate for the h1 heading
 
   // Determine stage dimensions based on orientation and available space
   const getStageDimensions = () => {
     // Available space calculation
-    const availableWidth = windowDimensions.width - sidebarWidth - 40; // 40px for padding
+    const availableWidth = windowDimensions.width - (isMobileView ? 0 : sidebarWidth) - 40; // 40px for padding
     const availableHeight = windowDimensions.height - headerHeight - 40; // 40px for padding
     
-    if (verticalOrientation) {
+    // Force vertical orientation if in mobile view
+    const useVerticalOrientation = isMobileView ? true : verticalOrientation;
+    
+    // Store dimensions to help calculate the scaling factor
+    let dimensions;
+    
+    if (useVerticalOrientation) {
       // In vertical orientation, width is shorter dimension, height is longer
       // First try to size based on width
       const widthBasedHeight = availableWidth * pitchRatio;
       
       if (widthBasedHeight <= availableHeight) {
         // If it fits, use width-based dimensions
-        return { width: availableWidth, height: widthBasedHeight };
+        dimensions = { width: availableWidth, height: widthBasedHeight };
       } else {
         // If too tall, constrain by height instead
-        return { width: availableHeight / pitchRatio, height: availableHeight };
+        dimensions = { width: availableHeight / pitchRatio, height: availableHeight };
       }
     } else {
       // In horizontal orientation, width is longer dimension, height is shorter
@@ -98,12 +108,14 @@ function App() {
       
       if (widthBasedHeight <= availableHeight) {
         // If it fits, use width-based dimensions
-        return { width: availableWidth, height: widthBasedHeight };
+        dimensions = { width: availableWidth, height: widthBasedHeight };
       } else {
         // If too tall, constrain by height instead
-        return { width: availableHeight * pitchRatio, height: availableHeight };
+        dimensions = { width: availableHeight * pitchRatio, height: availableHeight };
       }
     }
+    
+    return dimensions;
   };
 
   // Use state for stage dimensions to make it reactive
@@ -132,15 +144,47 @@ function App() {
   // Track window resize
   useEffect(() => {
     const handleResize = () => {
+      const newWidth = window.innerWidth;
+      const newHeight = window.innerHeight;
+      
+      // Update window dimensions
       setWindowDimensions({
-        width: window.innerWidth,
-        height: window.innerHeight
-      })
+        width: newWidth,
+        height: newHeight
+      });
+      
+      // Check for mobile view (width < 768px)
+      const shouldBeMobileView = newWidth < 768;
+      
+      if (shouldBeMobileView !== isMobileView) {
+        setIsMobileView(shouldBeMobileView);
+        
+        // Auto-close mobile menu when switching modes
+        if (shouldBeMobileView) {
+          setIsMobileMenuOpen(false);
+          
+          // Force vertical orientation in mobile view
+          if (!verticalOrientation) {
+            setVerticalOrientation(true);
+          }
+        } else {
+          // When switching back to desktop, revert to horizontal orientation
+          if (verticalOrientation) {
+            // Don't call toggleOrientation directly to avoid a loop
+            // Just set the state and let the other effects handle the transformation
+            setVerticalOrientation(false);
+          }
+        }
+      }
     }
 
     window.addEventListener('resize', handleResize)
+    
+    // Initial check
+    handleResize();
+    
     return () => window.removeEventListener('resize', handleResize)
-  }, [])
+  }, [isMobileView, verticalOrientation])
 
   // Scale elements when stage dimensions change due to window resize
   useEffect(() => {
@@ -221,6 +265,16 @@ function App() {
     // Update previous dimensions for next resize
     prevStageDimensionsRef.current = { ...stageDimensions };
   }, [stageDimensions]);
+
+  // Handle orientation change specifically
+  useEffect(() => {
+    // This effect is only to update prevStageDimensionsRef when orientation changes
+    // The actual element transformation happens in toggleOrientation function
+    if (players.length > 0 || shapes.length > 0) {
+      const dimensions = getStageDimensions();
+      prevStageDimensionsRef.current = { ...dimensions };
+    }
+  }, [verticalOrientation]);
 
   // Add default ball in the center of the pitch
   useEffect(() => {
@@ -995,6 +1049,11 @@ function App() {
   }
 
   const toggleOrientation = () => {
+    // Don't allow changing orientation in mobile view
+    if (isMobileView) {
+      return;
+    }
+    
     // Get current dimensions before toggling
     const oldDimensions = getStageDimensions();
     const oldWidth = oldDimensions.width;
@@ -1005,10 +1064,12 @@ function App() {
     
     // Calculate new dimensions after toggling
     const willBeVertical = !verticalOrientation;
-    const tempDimensions = willBeVertical ? 
+    
+    // Update previous dimensions to help with scaling in the next render
+    const newOrientation = willBeVertical ? 
       { width: oldHeight, height: oldWidth } : 
       { width: oldHeight, height: oldWidth };
-    
+      
     // Transform existing elements
     if (shapes.length > 0 || players.length > 0) {
       // Transform shapes
@@ -1025,16 +1086,16 @@ function App() {
             const normalizedY = y / oldHeight;
             
             if (willBeVertical) {
-              // Horizontal to vertical - rotate 90 degrees clockwise
+              // Horizontal to vertical - swap and adjust coordinates
               transformedPoints.push(
-                tempDimensions.width * normalizedY,
-                tempDimensions.height * (1 - normalizedX)
+                oldHeight * normalizedY,  // Use oldHeight for new width
+                oldWidth * (1 - normalizedX) // Use oldWidth for new height
               );
             } else {
-              // Vertical to horizontal - rotate 90 degrees counterclockwise
+              // Vertical to horizontal - swap and adjust coordinates
               transformedPoints.push(
-                tempDimensions.width * (1 - normalizedY),
-                tempDimensions.height * normalizedX
+                oldHeight * (1 - normalizedY), // Use oldHeight for new width
+                oldWidth * normalizedX  // Use oldWidth for new height
               );
             }
           }
@@ -1047,22 +1108,42 @@ function App() {
           const normalizedHeight = shape.height / oldHeight;
           
           if (willBeVertical) {
-            // Horizontal to vertical - rotate 90 degrees clockwise
+            // Horizontal to vertical - swap and adjust coordinates
             return {
               ...shape,
-              x: tempDimensions.width * normalizedY,
-              y: tempDimensions.height * (1 - normalizedX - normalizedWidth),
-              width: tempDimensions.width * normalizedHeight,
-              height: tempDimensions.height * normalizedWidth
+              x: oldHeight * normalizedY,
+              y: oldWidth * (1 - normalizedX - normalizedWidth),
+              width: oldHeight * normalizedHeight,
+              height: oldWidth * normalizedWidth
             };
           } else {
-            // Vertical to horizontal - rotate 90 degrees counterclockwise
+            // Vertical to horizontal - swap and adjust coordinates
             return {
               ...shape,
-              x: tempDimensions.width * (1 - normalizedY - normalizedHeight),
-              y: tempDimensions.height * normalizedX,
-              width: tempDimensions.width * normalizedHeight,
-              height: tempDimensions.height * normalizedWidth
+              x: oldHeight * (1 - normalizedY - normalizedHeight),
+              y: oldWidth * normalizedX,
+              width: oldHeight * normalizedHeight,
+              height: oldWidth * normalizedWidth
+            };
+          }
+        } else if (shape.type === 'football' || shape.type === 'cone') {
+          // Normalize coordinates for point objects
+          const normalizedX = shape.x / oldWidth;
+          const normalizedY = shape.y / oldHeight;
+          
+          if (willBeVertical) {
+            // Horizontal to vertical - swap and adjust coordinates
+            return {
+              ...shape,
+              x: oldHeight * normalizedY,
+              y: oldWidth * (1 - normalizedX)
+            };
+          } else {
+            // Vertical to horizontal - swap and adjust coordinates
+            return {
+              ...shape,
+              x: oldHeight * (1 - normalizedY),
+              y: oldWidth * normalizedX
             };
           }
         }
@@ -1076,18 +1157,18 @@ function App() {
         const normalizedY = player.y / oldHeight;
         
         if (willBeVertical) {
-          // Horizontal to vertical - rotate 90 degrees clockwise
+          // Horizontal to vertical - swap and adjust coordinates
           return {
             ...player,
-            x: tempDimensions.width * normalizedY,
-            y: tempDimensions.height * (1 - normalizedX)
+            x: oldHeight * normalizedY,
+            y: oldWidth * (1 - normalizedX)
           };
         } else {
-          // Vertical to horizontal - rotate 90 degrees counterclockwise
+          // Vertical to horizontal - swap and adjust coordinates
           return {
             ...player,
-            x: tempDimensions.width * (1 - normalizedY),
-            y: tempDimensions.height * normalizedX
+            x: oldHeight * (1 - normalizedY),
+            y: oldWidth * normalizedX
           };
         }
       });
@@ -1096,6 +1177,9 @@ function App() {
       setPlayers(transformedPlayers);
       setActionTaken(true);
     }
+    
+    // Override previous dimensions to help with scales in next render
+    prevStageDimensionsRef.current = newOrientation;
   }
 
   const openNumberEditor = () => {
@@ -1798,13 +1882,45 @@ function App() {
     };
   }, []);
 
+  // Toggle mobile menu
+  const toggleMobileMenu = () => {
+    setIsMobileMenuOpen(!isMobileMenuOpen);
+  }
+
   return (
     <div className="tactics-board" tabIndex={0} onKeyDown={handleKeyDown}>
       <h1>Football Tactics Board</h1>
       
-      <div className="main-container">
-        <div className="sidebar-toolbar">
+      <div className={`main-container ${isMobileView ? 'mobile-view' : ''}`}>
+        {isMobileView && (
+          <button 
+            className={`mobile-menu-toggle ${isMobileMenuOpen ? 'open' : ''}`}
+            onClick={toggleMobileMenu}
+            aria-label="Toggle menu"
+          >
+            <div className="menu-icon">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+          </button>
+        )}
+        
+        {isMobileView && isMobileMenuOpen && (
+          <div className="mobile-menu-overlay" onClick={() => setIsMobileMenuOpen(false)}></div>
+        )}
+        
+        <div className={`sidebar-toolbar ${isMobileView ? 'mobile' : ''} ${isMobileMenuOpen ? 'open' : ''}`}>
           <div className="toolbar-section color-section">
+            {isMobileView && (
+              <button 
+                className="mobile-menu-close" 
+                onClick={() => setIsMobileMenuOpen(false)}
+                aria-label="Close menu"
+              >
+                &times;
+              </button>
+            )}
             <div className="current-color-display">
               <div className="color-circle" style={{ backgroundColor: color }}></div>
             </div>
@@ -2000,7 +2116,7 @@ function App() {
           </div>
         </div>
         
-        <div className="canvas-container" style={{ width: stageWidth, height: stageHeight }}>
+        <div className={`canvas-container ${isMobileView ? 'mobile-view' : ''}`} style={{ width: stageWidth, height: stageHeight }}>
           {viewMode === 'board' ? (
             <>
               <Stage
@@ -2483,13 +2599,11 @@ function App() {
                 </Layer>
               </Stage>
               <div className="fullscreen-button" onClick={toggleFullscreen}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
                   {isFullscreen ? (
-                    // Exit fullscreen icon
-                    <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" />
+                    <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>
                   ) : (
-                    // Enter fullscreen icon
-                    <path d="M3 8V5a2 2 0 0 1 2-2h3m6 0h3a2 2 0 0 1 2 2v3m0 6v3a2 2 0 0 1-2 2h-3m-6 0H5a2 2 0 0 1-2-2v-3" />
+                    <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
                   )}
                 </svg>
               </div>
