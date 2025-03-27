@@ -1254,54 +1254,6 @@ function App() {
             </div>
             
             <div className="tools-row">
-              <span className="tools-label">Team:</span>
-              <button 
-                className={isHomeTeam ? 'active' : ''} 
-                onClick={() => toggleHomeAway('home')}
-                style={{ 
-                  borderLeft: homeTeamColor ? `4px solid ${homeTeamColor}` : 'none' 
-                }}
-              >
-                Home
-              </button>
-              <button 
-                className={!isHomeTeam ? 'active' : ''} 
-                onClick={() => toggleHomeAway('away')}
-                style={{ 
-                  borderLeft: awayTeamColor ? `4px solid ${awayTeamColor}` : 'none' 
-                }}
-              >
-                Away
-              </button>
-              <div className="formation-dropdown">
-                <button onClick={() => setShowFormationDropdown(!showFormationDropdown)}>
-                  Formation
-                </button>
-                
-                {showFormationDropdown && (
-                  <div className="dropdown-content">
-                    <button onClick={() => placePlayersInFormation('442')}>4-4-2</button>
-                    <button onClick={() => placePlayersInFormation('433')}>4-3-3</button>
-                    <button onClick={() => placePlayersInFormation('4231')}>4-2-3-1</button>
-                    <button onClick={() => placePlayersInFormation('532')}>5-3-2</button>
-                  </div>
-                )}
-              </div>
-              <button 
-                className={moveBlockActive ? 'active' : ''}
-                onClick={toggleMoveBlock}
-                disabled={isHomeTeam ? !homeTeamColor : !awayTeamColor}
-                style={{ 
-                  opacity: (isHomeTeam && homeTeamColor) || (!isHomeTeam && awayTeamColor) ? '1' : '0.5',
-                  borderLeft: isHomeTeam && homeTeamColor ? `4px solid ${homeTeamColor}` : 
-                            !isHomeTeam && awayTeamColor ? `4px solid ${awayTeamColor}` : 'none'
-                }}
-              >
-                Move
-              </button>
-            </div>
-            
-            <div className="tools-row">
               <span className="tools-label">Edit:</span>
               <button 
                 className={activeTool === 'delete' ? 'active' : ''} 
@@ -1345,6 +1297,9 @@ function App() {
           </div>
           
           <div className="toolbar-right">
+            <div className="current-color-display">
+              <div className="color-circle" style={{ backgroundColor: color }}></div>
+            </div>
             <div className="colors-grid">
               <button 
                 className={color === '#FF0000' ? 'active' : ''}
@@ -1387,15 +1342,15 @@ function App() {
                 style={{ backgroundColor: '#800080' }}
               ></button>
               <button 
-                title="Custom Color"
-                onClick={() => {
-                  const customColor = prompt('Enter a color hex code (e.g. #FF5733):');
-                  if (customColor) {
-                    handleColorChange(customColor);
-                  }
-                }}
-                style={{ background: 'linear-gradient(135deg, red, orange, yellow, green, blue, indigo, violet)' }}
-              ></button>
+                className="color-picker-button"
+                title="Color Picker"
+              >
+                <input 
+                  type="color" 
+                  value={color}
+                  onChange={(e) => handleColorChange(e.target.value)}
+                />
+              </button>
             </div>
           </div>
         </div>
